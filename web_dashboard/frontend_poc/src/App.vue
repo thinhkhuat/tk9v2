@@ -1,64 +1,54 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useSessionStore } from './stores/sessionStore'
-import { api } from './services/api'
 import ProgressTracker from './components/ProgressTracker.vue'
 import LogViewer from './components/LogViewer.vue'
 import FileExplorer from './components/FileExplorer.vue'
+import AppSkeletonLoader from './components/AppSkeletonLoader.vue'
+import ErrorMessage from './components/ErrorMessage.vue'
+import AgentFlow from './components/AgentFlow.vue' // Phase 4
 
 const store = useSessionStore()
 
 // Form state
 const researchSubject = ref('')
 const researchLanguage = ref('vi')
-const isSubmitting = ref(false)
 
-// Check for existing session on mount
-onMounted(async () => {
-  // Check localStorage for existing session
+// Check for existing session on mount (Phase 3: Enhanced with proper loading)
+onMounted(() => {
   const savedSessionId = localStorage.getItem('tk9_session_id')
   if (savedSessionId) {
     console.log(`Re-hydrating session: ${savedSessionId}`)
-    try {
-      await store.rehydrate(savedSessionId)
-      console.log('✅ Session re-hydrated successfully')
-    } catch (error) {
-      console.error('Failed to re-hydrate session, starting fresh')
-    }
+    store.rehydrate(savedSessionId)
+  } else {
+    // No session to rehydrate - initialize fresh
+    store.initializeNew()
   }
 })
 
 async function submitResearch() {
   if (!researchSubject.value.trim()) {
-    alert('Please enter a research subject')
+    store.appError = 'Please enter a research subject'
     return
   }
 
-  isSubmitting.value = true
+  // Call centralized store action (Phase 3: refactored)
+  await store.startNewSession(researchSubject.value, researchLanguage.value)
 
-  try {
-    const response = await api.submitResearch(researchSubject.value, researchLanguage.value)
-    console.log('Research submitted:', response)
-
-    // Save session ID to localStorage
-    localStorage.setItem('tk9_session_id', response.session_id)
-
-    // Connect to WebSocket for this session
-    store.connect(response.session_id)
-
-    // Clear form
+  // Clear form on success
+  if (!store.appError) {
     researchSubject.value = ''
-  } catch (error) {
-    console.error('Failed to submit research:', error)
-    alert('Failed to submit research. Please try again.')
-  } finally {
-    isSubmitting.value = false
   }
 }
 
 function newResearch() {
   store.reset()
   localStorage.removeItem('tk9_session_id')
+}
+
+function handleRetry() {
+  // Clear error and allow user to try again
+  store.appError = null
 }
 </script>
 
@@ -74,90 +64,104 @@ function newResearch() {
 
     <!-- Main Content -->
     <main class="container mx-auto px-4 py-8">
-      <!-- Research Form -->
-      <div v-if="!store.sessionId" class="max-w-2xl mx-auto mb-8">
-        <div class="bg-white rounded-lg shadow-md p-6">
-          <h2 class="text-2xl font-bold mb-4">Start New Research</h2>
+      <!-- PHASE 3: Conditional Rendering Based on Loading/Error State -->
 
-          <form @submit.prevent="submitResearch" class="space-y-4">
-            <div>
-              <label for="subject" class="block text-sm font-medium text-gray-700 mb-2">
-                Research Subject
-              </label>
-              <input
-                id="subject"
-                v-model="researchSubject"
-                type="text"
-                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter your research topic..."
-                :disabled="isSubmitting"
-              />
-            </div>
-
-            <div>
-              <label for="language" class="block text-sm font-medium text-gray-700 mb-2">
-                Language
-              </label>
-              <select
-                id="language"
-                v-model="researchLanguage"
-                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                :disabled="isSubmitting"
-              >
-                <option value="vi">Vietnamese</option>
-                <option value="en">English</option>
-                <option value="es">Spanish</option>
-                <option value="fr">French</option>
-              </select>
-            </div>
-
-            <button
-              type="submit"
-              class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-md transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-              :disabled="isSubmitting"
-            >
-              <span v-if="isSubmitting">Starting Research...</span>
-              <span v-else>🚀 Start Research</span>
-            </button>
-          </form>
-        </div>
+      <!-- 1. Show Skeleton Loader During Initial Load/Rehydration -->
+      <div v-if="store.isLoading">
+        <AppSkeletonLoader />
       </div>
 
-      <!-- Active Session Dashboard -->
-      <div v-else class="space-y-6">
-        <!-- Session Header -->
-        <div class="bg-white rounded-lg shadow-md p-6 flex justify-between items-center">
-          <div>
-            <h2 class="text-2xl font-bold text-gray-800">Research Session</h2>
-            <p class="text-sm text-gray-600 mt-1">Session ID: {{ store.sessionId }}</p>
+      <!-- 2. Show Error Message if Something Went Wrong -->
+      <div v-else-if="store.appError">
+        <ErrorMessage
+          :message="store.appError"
+          @retry="handleRetry"
+        />
+      </div>
+
+      <!-- 3. Show Main Application UI -->
+      <div v-else>
+        <!-- Research Form (shown when no active session) -->
+        <div v-if="!store.sessionId" class="max-w-2xl mx-auto mb-8">
+          <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-2xl font-bold mb-4">Start New Research</h2>
+
+            <form @submit.prevent="submitResearch" class="space-y-4">
+              <div>
+                <label for="subject" class="block text-sm font-medium text-gray-700 mb-2">
+                  Research Subject
+                </label>
+                <input
+                  id="subject"
+                  v-model="researchSubject"
+                  type="text"
+                  class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter your research topic..."
+                  :disabled="store.isSubmitting"
+                />
+              </div>
+
+              <div>
+                <label for="language" class="block text-sm font-medium text-gray-700 mb-2">
+                  Language
+                </label>
+                <select
+                  id="language"
+                  v-model="researchLanguage"
+                  class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  :disabled="store.isSubmitting"
+                >
+                  <option value="vi">Vietnamese</option>
+                  <option value="en">English</option>
+                  <option value="es">Spanish</option>
+                  <option value="fr">French</option>
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-md transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                :disabled="store.isSubmitting"
+              >
+                <span v-if="store.isSubmitting">Starting Research...</span>
+                <span v-else>🚀 Start Research</span>
+              </button>
+            </form>
           </div>
-          <button
-            @click="newResearch"
-            class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md font-semibold transition-colors"
-          >
-            New Research
-          </button>
         </div>
 
-        <!-- Dashboard Grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <!-- Left Column - Progress and Files -->
-          <div class="lg:col-span-2 space-y-6">
-            <!-- Progress Tracker -->
-            <div class="bg-white rounded-lg shadow-md p-6">
-              <ProgressTracker />
+        <!-- Active Session Dashboard -->
+        <div v-else class="space-y-6">
+          <!-- Session Header -->
+          <div class="bg-white rounded-lg shadow-md p-6 flex justify-between items-center">
+            <div>
+              <h2 class="text-2xl font-bold text-gray-800">Research Session</h2>
+              <p class="text-sm text-gray-600 mt-1">Session ID: {{ store.sessionId }}</p>
             </div>
-
-            <!-- File Explorer -->
-            <div class="bg-white rounded-lg shadow-md p-6">
-              <FileExplorer />
-            </div>
+            <button
+              @click="newResearch"
+              class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md font-semibold transition-colors"
+            >
+              New Research
+            </button>
           </div>
 
-          <!-- Right Column - Logs -->
-          <div class="lg:col-span-1">
-            <div class="bg-white rounded-lg shadow-md p-6 sticky top-6">
-              <LogViewer />
+          <!-- PHASE 4: Agent Flow Visualization -->
+          <AgentFlow />
+
+          <!-- Dashboard Grid -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Column - Progress and Files -->
+            <div class="lg:col-span-2 space-y-6">
+              <ProgressTracker />
+              <FileExplorer />
+            </div>
+
+            <!-- Right Column - Logs -->
+            <div class="lg:col-span-1">
+              <div class="sticky top-6">
+                <LogViewer />
+              </div>
             </div>
           </div>
         </div>

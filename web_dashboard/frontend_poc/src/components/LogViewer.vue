@@ -181,9 +181,6 @@ function clearLogs() {
           ● {{ store.wsStatus.toUpperCase() }}
         </span>
       </div>
-      <div class="research-status text-gray-600">
-        Status: {{ store.overallStatus }} ({{ store.overallProgress }}%)
-      </div>
     </div>
   </div>
 </template>

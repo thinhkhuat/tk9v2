@@ -17,7 +17,7 @@ class AgentUpdatePayload(BaseModel):
     status: Literal["pending", "running", "completed", "error"] = Field(
         ..., description="Current status of the agent"
     )
-    progress: float = Field(ge=0, le=100, description="Progress percentage (0-100)")
+    progress: Optional[float] = Field(None, ge=0, le=100, description="Progress percentage (0-100), None if not applicable")
     message: str = Field(..., description="Status message or description")
     stats: Optional[Dict[str, Any]] = Field(None, description="Optional statistics")
 
@@ -237,7 +237,7 @@ def create_agent_update_event(
     agent_id: str,
     agent_name: str,
     status: str,
-    progress: float,
+    progress: Optional[float],  # Allow None for agents without progress tracking
     message: str,
     stats: Optional[Dict[str, Any]] = None
 ) -> AgentUpdateEvent:
@@ -288,7 +288,7 @@ def create_research_status_event(
     progress: float,
     current_stage: Optional[str] = None,
     agents_completed: int = 0,
-    agents_total: int = 8,
+    agents_total: int = 7,  # 7 active agents (includes Orchestrator)
     estimated_completion: Optional[datetime] = None
 ) -> ResearchStatusEvent:
     """Create a typed research status event"""

@@ -1,6 +1,6 @@
 from gpt_researcher import GPTResearcher
 from colorama import Fore, Style
-from .utils.views import print_agent_output
+from .utils.views import print_agent_output, print_structured_output, print_agent_completion
 import os
 
 
@@ -56,21 +56,35 @@ class ResearchAgent:
         if self.websocket and self.stream_output:
             await self.stream_output("logs", "initial_research", f"Running initial research on the following query: {query}", self.websocket)
         else:
-            print_agent_output(f"Running initial research on the following query: {query}", agent="RESEARCHER")
+            # Phase 2: Use structured JSON output (no artificial progress)
+            # NOTE: This is the "browser" node in workflow - maps to Browser agent in frontend
+            print_structured_output(
+                message=f"Running initial research on the following query: {query}",
+                agent="BROWSER",
+                status="running"
+            )
         
         # Conduct research
         research_result = await self.research(query=query, verbose=task.get("verbose"),
                                             source=source, tone=self.tone, headers=self.headers)
-        
+
         # Save draft of initial research
         if self.draft_manager:
             self.draft_manager.save_agent_output(
                 agent_name="researcher",
-                phase="initial_research", 
+                phase="initial_research",
                 output=research_result,
                 metadata={"query": query, "source": source}
             )
-        
+
+        # Phase 2: Signal completion with structured output
+        if not (self.websocket and self.stream_output):
+            print_agent_completion(
+                agent="BROWSER",
+                message=f"Completed initial research for: {query}",
+                data={"query": query, "report_length": len(research_result)}
+            )
+
         return {"task": task, "initial_research": research_result}
 
     async def run_depth_research(self, draft_state: dict):
@@ -82,7 +96,12 @@ class ResearchAgent:
         if self.websocket and self.stream_output:
             await self.stream_output("logs", "depth_research", f"Running in depth research on the following report topic: {topic}", self.websocket)
         else:
-            print_agent_output(f"Running in depth research on the following report topic: {topic}", agent="RESEARCHER")
+            # Phase 2: Use structured JSON output (no artificial progress)
+            print_structured_output(
+                message=f"Running in depth research on the following report topic: {topic}",
+                agent="RESEARCHER",
+                status="running"
+            )
         
         research_draft = await self.run_subtopic_research(parent_query=parent_query, subtopic=topic,
                                                           verbose=verbose, source=source, headers=self.headers)

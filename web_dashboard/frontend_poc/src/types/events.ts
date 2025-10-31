@@ -15,7 +15,7 @@ export interface AgentUpdatePayload {
   agent_id: string;
   agent_name: string;
   status: AgentStatus;
-  progress: number; // 0-100
+  progress: number | null; // 0-100, null if not applicable
   message: string;
   stats?: Record<string, any>;
 }
@@ -155,8 +155,8 @@ export function isAgentUpdatePayload(payload: any): payload is AgentUpdatePayloa
     'agent_id' in payload &&
     'agent_name' in payload &&
     'status' in payload &&
-    'progress' in payload &&
     'message' in payload
+    // Note: progress is optional (can be null), so we don't check for it
   );
 }
 
