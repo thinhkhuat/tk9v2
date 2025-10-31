@@ -147,7 +147,10 @@ export const useSessionStore = defineStore('session', () => {
     }
 
     // Create new WebSocket connection
-    ws = new WebSocket(`ws://localhost:12656/ws/${sessionIdParam}`)
+    // Use environment variable or construct from current location
+    const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL || 
+      (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host
+    ws = new WebSocket(`${wsBaseUrl}/ws/${sessionIdParam}`)
 
     ws.onopen = () => {
       wsStatus.value = 'connected'

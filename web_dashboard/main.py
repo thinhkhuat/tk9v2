@@ -64,7 +64,13 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
         "http://localhost:12656",
-        "http://127.0.0.1:12656"
+        "http://127.0.0.1:12656",
+        "http://192.168.2.22:12656",
+        "http://192.168.2.22:5173",
+        "http://tk9.thinhkhuat.com",
+        "https://tk9.thinhkhuat.com",
+        "http://tk9v2.thinhkhuat.com",
+        "https://tk9v2.thinhkhuat.com"
     ],
     allow_credentials=True,
     allow_methods=["*"],  # Allow all methods (GET, POST, OPTIONS, etc.)

@@ -9,5 +9,14 @@ export default defineConfig({
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
     }
+  },
+  server: {
+    host: '0.0.0.0',
+    allowedHosts: [
+      '.thinhkhuat.com',
+      'tk9v2.thinhkhuat.com',
+      'localhost',
+      '127.0.0.1'
+    ]
   }
 })
