@@ -1,0 +1,35 @@
+tk9.thinhkhuat.com {
+    encode gzip
+
+    # Handle WebSocket connections properly
+    @websockets {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+
+    # WebSocket-specific reverse proxy
+    handle @websockets {
+        reverse_proxy 192.168.2.22:12656 {
+            # Preserve WebSocket headers
+            header_up Connection {http.request.header.Connection}
+            header_up Upgrade {http.request.header.Upgrade}
+            header_up Host {host}
+            header_up X-Real-IP {remote}
+            header_up X-Forwarded-For {remote}
+            header_up X-Forwarded-Proto {scheme}
+
+            # Disable buffering for WebSocket
+            flush_interval -1
+        }
+    }
+
+    # Handle regular HTTP requests
+    handle {
+        reverse_proxy 192.168.2.22:12656 {
+            header_up Host {host}
+            header_up X-Real-IP {remote}
+            header_up X-Forwarded-For {remote}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+}

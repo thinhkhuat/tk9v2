@@ -1,0 +1,238 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # Deep Research MCP Server
+  # ============================================================================
+  deep-research-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_VERSION: ${BUILD_VERSION:-latest}
+        BUILD_DATE: ${BUILD_DATE}
+        VCS_REF: ${VCS_REF}
+    image: deep-research-mcp:${TAG:-latest}
+    container_name: deep-research-mcp
+    restart: unless-stopped
+    
+    # Environment configuration
+    environment:
+      # Load from .env file
+      - NODE_ENV=${NODE_ENV:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DEBUG=${DEBUG:-false}
+      
+      # Multi-Provider Configuration
+      - PRIMARY_LLM_PROVIDER=${PRIMARY_LLM_PROVIDER:-openai}
+      - PRIMARY_LLM_MODEL=${PRIMARY_LLM_MODEL:-gpt-4o}
+      - PRIMARY_SEARCH_PROVIDER=${PRIMARY_SEARCH_PROVIDER:-tavily}
+      
+      # API Keys (loaded from .env)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
+      - BRAVE_API_KEY=${BRAVE_API_KEY}
+      
+      # Language and Search Configuration
+      - RESEARCH_LANGUAGE=${RESEARCH_LANGUAGE:-en}
+      - SEARCH_COUNTRY=${SEARCH_COUNTRY:-US}
+      - SEARCH_LANGUAGE=${SEARCH_LANGUAGE:-en}
+      
+      # Provider Settings
+      - PROVIDER_TIMEOUT=${PROVIDER_TIMEOUT:-30}
+      - PROVIDER_MAX_RETRIES=${PROVIDER_MAX_RETRIES:-3}
+      - LLM_STRATEGY=${LLM_STRATEGY:-primary_only}
+      - SEARCH_STRATEGY=${SEARCH_STRATEGY:-primary_only}
+      
+      # Feature Flags
+      - ENABLE_CACHING=${ENABLE_CACHING:-true}
+      - COST_TRACKING=${COST_TRACKING:-true}
+      
+    # Port mapping
+    ports:
+      - "${MCP_PORT:-8000}:8000"
+    
+    # Volume mounts for persistent data
+    volumes:
+      - ./outputs:/app/outputs:rw
+      - ./logs:/app/logs:rw
+      - ./data:/app/data:rw
+      - ./.env:/app/.env:ro
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Logging configuration
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    
+    # Network configuration
+    networks:
+      - deep-research-network
+
+  # ============================================================================
+  # Redis Cache (Optional - for caching and session management)
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: deep-research-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-deepresearch2024}
+    
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    
+    volumes:
+      - redis_data:/data
+    
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-deepresearch2024}
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    
+    networks:
+      - deep-research-network
+
+  # ============================================================================
+  # Nginx Reverse Proxy (Optional - for production load balancing)
+  # ============================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: deep-research-nginx
+    restart: unless-stopped
+    
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/ssl:/etc/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+    
+    depends_on:
+      - deep-research-mcp
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    
+    networks:
+      - deep-research-network
+    
+    profiles:
+      - production
+
+  # ============================================================================
+  # Monitoring with Prometheus (Optional)
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: deep-research-prometheus
+    restart: unless-stopped
+    
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    
+    volumes:
+      - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    
+    networks:
+      - deep-research-network
+    
+    profiles:
+      - monitoring
+
+  # ============================================================================
+  # Grafana Dashboard (Optional)
+  # ============================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: deep-research-grafana
+    restart: unless-stopped
+    
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./deploy/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./deploy/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    
+    depends_on:
+      - prometheus
+    
+    networks:
+      - deep-research-network
+    
+    profiles:
+      - monitoring
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  deep-research-network:
+    driver: bridge
+    name: deep-research-network
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  redis_data:
+    name: deep-research-redis-data
+  prometheus_data:
+    name: deep-research-prometheus-data
+  grafana_data:
+    name: deep-research-grafana-data

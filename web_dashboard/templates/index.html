@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Deep Research TK9 Dashboard</title>
+        <link rel="stylesheet" href="/static/css/dashboard.css" />
+        <link rel="stylesheet" href="/static/css/enhanced-downloads.css" />
+        <link
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+            rel="stylesheet"
+        />
+    </head>
+    <body>
+        <div class="container">
+            <header class="header">
+                <h1>
+                    <i class="fas fa-search"></i> Deep Research TK9 Dashboard
+                </h1>
+                <p>
+                    Submit your research topic and watch the AI agents work in
+                    real-time
+                </p>
+
+                <!-- Navigation Tabs -->
+                <div class="nav-tabs">
+                    <button class="nav-tab active" id="new-research-tab">
+                        <i class="fas fa-plus"></i> New Research
+                    </button>
+                    <button class="nav-tab" id="browse-sessions-tab">
+                        <i class="fas fa-folder-open"></i> Browse Sessions
+                    </button>
+                </div>
+            </header>
+
+            <main class="main-content">
+                <!-- Research Form -->
+                <div class="research-form" id="research-form">
+                    <div class="form-group">
+                        <label for="research-subject">
+                            <i class="fas fa-lightbulb"></i> Research Subject
+                        </label>
+                        <textarea
+                            id="research-subject"
+                            placeholder="Enter your research topic here (e.g., 'Latest developments in quantum computing', 'Climate change impacts on agriculture', etc.)"
+                            rows="3"
+                            maxlength="1000"
+                        ></textarea>
+                        <div class="char-counter">
+                            <span id="char-count">0</span>/1000 characters
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="language-select">
+                            <i class="fas fa-language"></i> Output Language
+                        </label>
+                        <select id="language-select">
+                            <option value="vi">Vietnamese</option>
+                            <option value="en">English</option>
+                            <option value="zh">Chinese</option>
+                            <option value="ja">Japanese</option>
+                            <option value="ko">Korean</option>
+                            <option value="fr">French</option>
+                            <option value="de">German</option>
+                            <option value="es">Spanish</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="submit-btn" id="submit-btn">
+                        <i class="fas fa-rocket"></i> Start Research
+                    </button>
+                </div>
+
+                <!-- Progress Section -->
+                <div
+                    class="progress-section"
+                    id="progress-section"
+                    style="display: none"
+                >
+                    <div class="progress-header">
+                        <h2>
+                            <i class="fas fa-cogs"></i> Research in Progress
+                        </h2>
+                        <div class="session-info">
+                            Session ID: <span id="session-id"></span>
+                        </div>
+                    </div>
+
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+
+                    <div class="status-indicators">
+                        <div class="status-item" id="status-connecting">
+                            <i class="fas fa-plug"></i> Connecting...
+                        </div>
+                        <div class="status-item" id="status-running">
+                            <i class="fas fa-play"></i> Running Research
+                        </div>
+                        <div class="status-item" id="status-processing">
+                            <i class="fas fa-file-alt"></i> Processing Results
+                        </div>
+                        <div class="status-item" id="status-complete">
+                            <i class="fas fa-check"></i> Complete
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Log Output -->
+                <div class="log-section" id="log-section" style="display: none">
+                    <div class="log-header">
+                        <h3><i class="fas fa-terminal"></i> Live Output</h3>
+                        <div class="log-controls">
+                            <button id="clear-log" class="control-btn">
+                                <i class="fas fa-eraser"></i> Clear
+                            </button>
+                            <button id="scroll-lock" class="control-btn">
+                                <i class="fas fa-lock"></i> Lock Scroll
+                            </button>
+                        </div>
+                    </div>
+                    <div class="log-output" id="log-output"></div>
+                </div>
+
+                <!-- Download Section -->
+                <div
+                    class="download-section"
+                    id="download-section"
+                    style="display: none"
+                >
+                    <div class="download-header">
+                        <h3>
+                            <i class="fas fa-download"></i> Download Results
+                        </h3>
+                        <p>
+                            Your research is complete! Download the generated
+                            files below:
+                        </p>
+                    </div>
+                    <div class="download-files" id="download-files">
+                        <!-- Download links will be populated here -->
+                    </div>
+
+                    <div class="action-buttons">
+                        <button id="new-research" class="action-btn primary">
+                            <i class="fas fa-plus"></i> Start New Research
+                        </button>
+                        <button id="download-all" class="action-btn secondary">
+                            <i class="fas fa-file-archive"></i> Download All
+                            (ZIP)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Error Section -->
+                <div
+                    class="error-section"
+                    id="error-section"
+                    style="display: none"
+                >
+                    <div class="error-header">
+                        <h3>
+                            <i class="fas fa-exclamation-triangle"></i> Error
+                        </h3>
+                    </div>
+                    <div class="error-message" id="error-message"></div>
+                    <div class="action-buttons">
+                        <button id="retry-research" class="action-btn primary">
+                            <i class="fas fa-redo"></i> Try Again
+                        </button>
+                        <button
+                            id="new-research-error"
+                            class="action-btn secondary"
+                        >
+                            <i class="fas fa-plus"></i> New Research
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Browse Sessions Section -->
+                <div
+                    class="browse-sessions"
+                    id="browse-sessions"
+                    style="display: none"
+                >
+                    <div class="sessions-header">
+                        <h2>
+                            <i class="fas fa-folder-open"></i> Research Sessions
+                        </h2>
+                        <p>
+                            Browse and download files from previous research
+                            sessions
+                        </p>
+                        <button id="refresh-sessions" class="control-btn">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="sessions-loading" id="sessions-loading">
+                        <div class="loading-spinner"></div>
+                        <p>Loading research sessions...</p>
+                    </div>
+
+                    <div class="sessions-list" id="sessions-list">
+                        <!-- Sessions will be populated here -->
+                    </div>
+
+                    <div
+                        class="sessions-empty"
+                        id="sessions-empty"
+                        style="display: none"
+                    >
+                        <div class="empty-state">
+                            <i class="fas fa-search"></i>
+                            <h3>No Research Sessions Found</h3>
+                            <p>
+                                Start your first research to see sessions here.
+                            </p>
+                            <button
+                                class="action-btn primary"
+                                onclick="switchToNewResearch()"
+                            >
+                                <i class="fas fa-plus"></i> Start New Research
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <footer class="footer">
+                <p>
+                    Deep Research TK9 Web Dashboard • Powered by Multi-Agent AI
+                    System
+                </p>
+                <div class="health-status">
+                    <span id="health-indicator" class="health-ok">
+                        <i class="fas fa-circle"></i> System Healthy
+                    </span>
+                </div>
+            </footer>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loading-overlay" style="display: none">
+            <div class="loading-content">
+                <div class="spinner"></div>
+                <p>Starting research session...</p>
+            </div>
+        </div>
+
+        <script src="/static/js/websocket-client.js"></script>
+        <script src="/static/js/dashboard.js"></script>
+        <script src="/static/js/enhanced-downloads.js"></script>
+    </body>
+</html>

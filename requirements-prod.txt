@@ -1,0 +1,154 @@
+# Deep Research MCP - Production Dependencies
+# This file contains only production dependencies for streamlined deployment
+# Generated from pyproject.toml with production optimizations
+
+# ============================================================================
+# Core Framework Dependencies
+# ============================================================================
+fastapi>=0.116.0
+uvicorn[standard]>=0.25.0
+pydantic>=2.5.0
+
+# ============================================================================
+# MCP and AI Research Dependencies
+# ============================================================================
+mcp>=0.9.0
+gpt-researcher>=0.14.1
+langchain>=0.1.0
+langchain-community>=0.0.10
+langchain-google-genai>=2.0.10
+langgraph>=0.0.20
+
+# ============================================================================
+# LLM Provider Dependencies
+# ============================================================================
+openai>=1.12.0
+google-generativeai>=0.8.0
+anthropic>=0.25.0
+
+# ============================================================================
+# Search and Retrieval Dependencies
+# ============================================================================
+aiohttp>=3.10.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+# ============================================================================
+# Document Processing and Export
+# ============================================================================
+jinja2>=3.1.0
+pypandoc>=1.11
+python-docx>=1.1.0
+reportlab>=4.0.0
+weasyprint>=60.0
+
+# ============================================================================
+# Async and Concurrency
+# ============================================================================
+nest-asyncio>=1.6.0
+asyncio-throttle>=1.0.0
+
+# ============================================================================
+# Configuration and Environment
+# ============================================================================
+python-dotenv>=1.0.0
+pydantic-settings>=2.1.0
+
+# ============================================================================
+# Database and Caching (Optional)
+# ============================================================================
+redis>=5.0.0
+sqlalchemy>=2.0.0
+alembic>=1.13.0
+
+# ============================================================================
+# Monitoring and Logging
+# ============================================================================
+prometheus-client>=0.19.0
+structlog>=23.2.0
+python-json-logger>=2.0.0
+
+# ============================================================================
+# Security and Validation
+# ============================================================================
+cryptography>=41.0.0
+python-multipart>=0.0.6
+email-validator>=2.1.0
+
+# ============================================================================
+# Network and HTTP
+# ============================================================================
+httpx>=0.26.0
+certifi>=2023.11.17
+
+# ============================================================================
+# Data Processing and Utilities
+# ============================================================================
+pandas>=2.1.0
+numpy>=1.24.0
+python-dateutil>=2.8.0
+
+# ============================================================================
+# File and Archive Handling
+# ============================================================================
+python-magic>=0.4.27
+
+# ============================================================================
+# Production Optimizations
+# ============================================================================
+
+# ASGI server with production features
+gunicorn>=21.2.0
+
+# Process management
+supervisor>=4.2.0
+
+# Performance monitoring
+psutil>=5.9.0
+
+# ============================================================================
+# Platform Specific (Uncomment as needed)
+# ============================================================================
+
+# For PDF generation on Linux
+# wkhtmltopdf
+
+# For Windows compatibility
+# pywin32>=306; sys_platform == "win32"
+
+# For macOS compatibility
+# pyobjc-core>=9.0; sys_platform == "darwin"
+
+# ============================================================================
+# Version Constraints for Stability
+# ============================================================================
+
+# Pin critical dependencies to avoid breaking changes
+# Uncomment and adjust versions based on your testing
+
+# fastapi==0.116.0
+# openai==1.12.0
+# google-generativeai==0.8.0
+# gpt-researcher==0.14.1
+
+# ============================================================================
+# Notes for Production Deployment
+# ============================================================================
+# 
+# 1. Install with: pip install -r requirements-prod.txt
+# 2. Consider using pip-tools for dependency management:
+#    pip install pip-tools
+#    pip-compile requirements-prod.in
+# 3. For Docker builds, use multi-stage builds to minimize image size
+# 4. Consider using wheel files for faster installs:
+#    pip wheel -r requirements-prod.txt -w wheels/
+# 5. Use virtual environments or containers to isolate dependencies
+# 6. Monitor for security vulnerabilities:
+#    pip install safety
+#    safety check -r requirements-prod.txt
+# 7. Keep dependencies updated but test thoroughly:
+#    pip list --outdated
+# 8. Use dependency scanning in CI/CD:
+#    pip install pip-audit
+#    pip-audit -r requirements-prod.txt

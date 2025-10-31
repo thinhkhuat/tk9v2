@@ -1,0 +1,109 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Environment variables (SENSITIVE - never commit)
+.env
+.env.local
+.env.production
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Node.js / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+dist/
+dist-ssr/
+*.local
+
+# Frontend build artifacts
+web_dashboard/frontend_poc/dist/
+web_dashboard/frontend_poc/dist-ssr/
+web_dashboard/frontend_poc/.vite/
+web_dashboard/frontend_poc/node_modules/
+
+# Research outputs (generated files)
+outputs/
+multi_agents/outputs/
+*.pdf
+*.docx
+*.zip
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# Local tools and CLI
+.serena/
+.serena-cli/
+
+# Package manager locks (keep these commented if you want to track them)
+# package-lock.json
+# pnpm-lock.yaml
+# uv.lock
+
+# Deployment artifacts
+deploy/secrets/
+deploy/*.pem
+deploy/*.key
+
+# Caddy
+Caddyfile.lock
+
+# Misc
+digest.txt
+*.bak
+*.old

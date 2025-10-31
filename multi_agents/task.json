@@ -1,0 +1,21 @@
+{
+  "query": "[PLACEHOLDER - Will be overridden by user query]",
+  "max_sections": 8,
+  "publish_formats": {
+    "markdown": true,
+    "pdf": true,
+    "docx": true
+  },
+  "include_human_feedback": false,
+  "follow_guidelines": false,
+  "model": "gemini-2.5-flash",
+  "guidelines": [
+    "Ensure accuracy and cite reliable sources",
+    "Use clear and professional language",
+    "Structure content logically with proper headings",
+    "Include practical examples and applications",
+    "Maintain objective and balanced perspective"
+  ],
+  "verbose": true,
+  "language": "vi"
+}

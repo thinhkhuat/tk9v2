@@ -1,0 +1,377 @@
+# Serverless Framework configuration for AWS deployment
+# Deep Research MCP - Multi-Agent Research System
+
+service: deep-research-mcp
+
+# ============================================================================
+# Provider Configuration
+# ============================================================================
+provider:
+  name: aws
+  runtime: python3.13
+  stage: ${env:STAGE, 'prod'}
+  region: ${env:AWS_REGION, 'us-east-1'}
+  
+  # Memory and timeout settings
+  memorySize: ${env:MEMORY_SIZE, '2048'}
+  timeout: ${env:TIMEOUT, '900'}  # 15 minutes for research tasks
+  
+  # IAM role permissions
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: arn:aws:logs:*:*:*
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+            - s3:PutObject
+            - s3:DeleteObject
+          Resource: arn:aws:s3:::${self:service}-${self:provider.stage}-storage/*
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource: arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:service}-${self:provider.stage}-*
+        - Effect: Allow
+          Action:
+            - ssm:GetParameter
+            - ssm:GetParameters
+            - ssm:GetParametersByPath
+          Resource: arn:aws:ssm:${aws:region}:${aws:accountId}:parameter/${self:service}/${self:provider.stage}/*
+
+  # Environment variables from SSM Parameter Store
+  environment:
+    STAGE: ${self:provider.stage}
+    SERVICE_NAME: ${self:service}
+    
+    # Core configuration
+    NODE_ENV: production
+    LOG_LEVEL: ${env:LOG_LEVEL, 'INFO'}
+    DEBUG: 'false'
+    
+    # Multi-provider configuration
+    PRIMARY_LLM_PROVIDER: ${env:PRIMARY_LLM_PROVIDER, 'google_gemini'}
+    PRIMARY_LLM_MODEL: ${env:PRIMARY_LLM_MODEL, 'gemini-2.5-flash-preview-04-17-thinking'}
+    PRIMARY_SEARCH_PROVIDER: ${env:PRIMARY_SEARCH_PROVIDER, 'brave'}
+    
+    # Provider strategies
+    LLM_STRATEGY: ${env:LLM_STRATEGY, 'fallback_on_error'}
+    SEARCH_STRATEGY: ${env:SEARCH_STRATEGY, 'fallback_on_error'}
+    
+    # API keys from Parameter Store
+    OPENAI_API_KEY: ${ssm:/${self:service}/${self:provider.stage}/OPENAI_API_KEY}
+    GOOGLE_API_KEY: ${ssm:/${self:service}/${self:provider.stage}/GOOGLE_API_KEY}
+    ANTHROPIC_API_KEY: ${ssm:/${self:service}/${self:provider.stage}/ANTHROPIC_API_KEY}
+    TAVILY_API_KEY: ${ssm:/${self:service}/${self:provider.stage}/TAVILY_API_KEY}
+    BRAVE_API_KEY: ${ssm:/${self:service}/${self:provider.stage}/BRAVE_API_KEY}
+    
+    # Storage configuration
+    S3_BUCKET: ${self:service}-${self:provider.stage}-storage
+    DYNAMODB_TABLE_PREFIX: ${self:service}-${self:provider.stage}
+    
+    # Performance settings
+    PROVIDER_TIMEOUT: '60'
+    PROVIDER_MAX_RETRIES: '5'
+    ENABLE_CACHING: 'true'
+    
+    # Language settings
+    RESEARCH_LANGUAGE: ${env:RESEARCH_LANGUAGE, 'en'}
+
+  # VPC configuration (optional, for private subnets)
+  # vpc:
+  #   securityGroupIds:
+  #     - ${env:SECURITY_GROUP_ID}
+  #   subnetIds:
+  #     - ${env:SUBNET_ID_1}
+  #     - ${env:SUBNET_ID_2}
+
+  # CloudFormation tags
+  tags:
+    Service: deep-research-mcp
+    Environment: ${self:provider.stage}
+    ManagedBy: serverless
+
+# ============================================================================
+# Lambda Functions
+# ============================================================================
+functions:
+  # Main MCP server function
+  mcp-server:
+    handler: serverless_handler.mcp_handler
+    description: Deep Research MCP Server - Multi-agent research system
+    events:
+      - http:
+          path: /
+          method: ANY
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+      - http:
+          path: /{proxy+}
+          method: ANY
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+    
+    # Reserved concurrency to prevent overwhelming external APIs
+    reservedConcurrency: 10
+    
+    # Dead letter queue for failed requests
+    onError: arn:aws:sns:${aws:region}:${aws:accountId}:${self:service}-${self:provider.stage}-errors
+
+  # Health check function (lightweight)
+  health-check:
+    handler: serverless_handler.health_handler
+    description: Health check endpoint for Deep Research MCP
+    memorySize: 256
+    timeout: 30
+    events:
+      - http:
+          path: /health
+          method: GET
+      - schedule:
+          rate: rate(5 minutes)
+          enabled: true
+
+  # Background task processor (for long-running research)
+  research-processor:
+    handler: serverless_handler.research_processor
+    description: Background research task processor
+    timeout: 900  # 15 minutes
+    memorySize: 3008
+    events:
+      - sqs:
+          arn: arn:aws:sqs:${aws:region}:${aws:accountId}:${self:service}-${self:provider.stage}-research-queue
+          batchSize: 1
+          maximumBatchingWindowInSeconds: 30
+
+# ============================================================================
+# Cloud Resources
+# ============================================================================
+resources:
+  Resources:
+    # S3 bucket for storing research outputs
+    ResearchOutputsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:service}-${self:provider.stage}-storage
+        VersioningConfiguration:
+          Status: Enabled
+        BucketEncryption:
+          ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+        LifecycleConfiguration:
+          Rules:
+            - Id: DeleteOldResearchOutputs
+              Status: Enabled
+              ExpirationInDays: 30
+              NoncurrentVersionExpirationInDays: 7
+
+    # DynamoDB table for research metadata
+    ResearchMetadataTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:service}-${self:provider.stage}-research-metadata
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: research_id
+            AttributeType: S
+          - AttributeName: created_at
+            AttributeType: S
+        KeySchema:
+          - AttributeName: research_id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: CreatedAtIndex
+            KeySchema:
+              - AttributeName: created_at
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        
+        Tags:
+          - Key: Service
+            Value: deep-research-mcp
+          - Key: Environment
+            Value: ${self:provider.stage}
+
+    # SQS queue for research tasks
+    ResearchQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:service}-${self:provider.stage}-research-queue
+        VisibilityTimeoutSeconds: 960  # Slightly longer than function timeout
+        MessageRetentionPeriod: 1209600  # 14 days
+        DelaySeconds: 0
+        ReceiveMessageWaitTimeSeconds: 20  # Long polling
+        RedrivePolicy:
+          deadLetterTargetArn:
+            Fn::GetAtt: [ResearchDeadLetterQueue, Arn]
+          maxReceiveCount: 3
+
+    # Dead letter queue for failed research tasks
+    ResearchDeadLetterQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:service}-${self:provider.stage}-research-dlq
+        MessageRetentionPeriod: 1209600  # 14 days
+
+    # SNS topic for error notifications
+    ErrorNotificationsTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: ${self:service}-${self:provider.stage}-errors
+        DisplayName: Deep Research MCP Errors
+
+    # CloudWatch Log Groups
+    MCPServerLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-mcp-server
+        RetentionInDays: 30
+
+    HealthCheckLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-health-check
+        RetentionInDays: 7
+
+    ResearchProcessorLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-research-processor
+        RetentionInDays: 30
+
+  # CloudFormation outputs
+  Outputs:
+    ApiGatewayRestApiId:
+      Value:
+        Ref: ApiGatewayRestApi
+      Export:
+        Name: ${self:service}-${self:provider.stage}-api-id
+
+    ApiGatewayRestApiUrl:
+      Value:
+        Fn::Join:
+          - ""
+          - - "https://"
+            - Ref: ApiGatewayRestApi
+            - ".execute-api."
+            - ${aws:region}
+            - ".amazonaws.com/"
+            - ${self:provider.stage}
+      Export:
+        Name: ${self:service}-${self:provider.stage}-api-url
+
+    S3BucketName:
+      Value:
+        Ref: ResearchOutputsBucket
+      Export:
+        Name: ${self:service}-${self:provider.stage}-bucket-name
+
+# ============================================================================
+# Plugins and Custom Configuration
+# ============================================================================
+plugins:
+  - serverless-python-requirements
+  - serverless-plugin-aws-alerts
+  - serverless-domain-manager
+  - serverless-plugin-canary-deployments
+
+custom:
+  # Python requirements
+  pythonRequirements:
+    dockerizePip: true
+    dockerImage: public.ecr.aws/lambda/python:3.13
+    slim: true
+    strip: false
+    noDeps: false
+    pipCmdExtraArgs:
+      - --no-cache-dir
+    fileName: requirements-prod.txt
+    useStaticCache: false
+    useDownloadCache: false
+
+  # CloudWatch Alerts
+  alerts:
+    stages:
+      - prod
+    topics:
+      alarm:
+        topic: ${self:service}-${self:provider.stage}-alerts
+        notifications:
+          - protocol: email
+            endpoint: ${env:ALERT_EMAIL, 'alerts@yourdomain.com'}
+    alarms:
+      - functionErrorRate
+      - functionDuration
+      - functionThrottles
+      - functionInvocations
+
+  # Custom domain (optional)
+  customDomain:
+    domainName: ${env:DOMAIN_NAME, ''}
+    basePath: ''
+    stage: ${self:provider.stage}
+    createRoute53Record: true
+    certificateName: ${env:SSL_CERTIFICATE_NAME, ''}
+    
+  # Canary deployments
+  deploymentSettings:
+    type: Linear10PercentEvery1Minute
+    alias: Live
+    preTrafficHook: preHook
+    postTrafficHook: postHook
+    alarms:
+      - AliasErrorMetricGreaterThanZeroAlarm
+      - LatestVersionErrorMetricGreaterThanZeroAlarm
+
+# ============================================================================
+# Package Configuration
+# ============================================================================
+package:
+  patterns:
+    - '!**'
+    - 'serverless_handler.py'
+    - 'mcp_server.py'
+    - 'main.py'
+    - 'multi_agents/**'
+    - 'cli/**'
+    - '!multi_agents/outputs/**'
+    - '!**/__pycache__/**'
+    - '!**/tests/**'
+    - '!**/*.pyc'
+    - '!.git/**'
+    - '!.pytest_cache/**'
+    - '!node_modules/**'

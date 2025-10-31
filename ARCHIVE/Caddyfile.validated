@@ -1,0 +1,28 @@
+# TK9 Configuration - Validated with Official Docs
+# WebSocket support is AUTOMATIC in Caddy v2
+
+tk9.thinhkhuat.com {
+    encode gzip
+
+    reverse_proxy 192.168.2.22:12656 {
+        # Only these headers need manual setting
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+
+        # Optional: Disable buffering for real-time streaming
+        # Default is -1 (no periodic flushing)
+        # Set to 0 to disable buffering entirely
+        flush_interval -1
+    }
+}
+
+# Alternative domain with same config
+tk9.thinhkhuat.work {
+    encode gzip
+
+    reverse_proxy 192.168.2.22:12656 {
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        flush_interval -1
+    }
+}
