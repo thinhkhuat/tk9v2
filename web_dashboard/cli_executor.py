@@ -2,11 +2,16 @@ import asyncio
 import os
 import subprocess
 import logging
+import re
 from pathlib import Path
 from typing import AsyncGenerator, Optional
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+# Pattern to strip ANSI escape codes and carriage returns
+# This ensures clean log output regardless of CLI formatting
+ANSI_ESCAPE_PATTERN = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])|\r')
 
 class CLIExecutor:
     """Handles execution of the CLI command and streaming of logs"""
@@ -26,16 +31,17 @@ class CLIExecutor:
             sanitized_subject = self._sanitize_input(subject)
             
             # Build the command
+            # Use multi_agents.main to avoid loading the old root main.py
             cmd = [
-                "uv", "run", "python", "-m", "main", 
-                "-r", sanitized_subject,
-                "-l", language,
-                "--save-files",
+                "uv", "run", "python", "-m", "multi_agents.main",
+                "--research", sanitized_subject,
+                "--language", language,
+                "--session-id", session_id,  # Pass session ID to CLI
                 "--verbose"  # Ensure verbose output
             ]
-            
+
             logger.info(f"Starting research for session {session_id}: {sanitized_subject}")
-            
+
             # Start the process
             process = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -57,25 +63,49 @@ class CLIExecutor:
             yield f"[SYSTEM] Command: {' '.join(cmd)}\n"
             yield f"[SYSTEM] Session ID: {session_id}\n"
             yield "=" * 80 + "\n"
-            
-            # Read and yield output line by line
+
+            # PHASE 1 FIX: Chunk-based reading instead of readline()
+            # This prevents LimitOverrunError ("Separator is not found, and chunk exceed the limit")
+            # Defense-in-depth: works even if CLI emits very long lines (>64KB)
+            # Complements the langchain text_processing_fix.py patch
+            buffer = ""
             while True:
-                line = await process.stdout.readline()
-                if not line:
+                # Read in fixed-size chunks - never fails on long lines
+                chunk = await process.stdout.read(4096)
+                if not chunk:
                     break
-                    
-                decoded_line = line.decode('utf-8', errors='replace')
-                yield decoded_line
-                
-                # Log significant actual errors (not informational messages about error handling)
-                # Skip lines that are just describing error handling features
-                lower_line = decoded_line.lower()
-                if ("error" in lower_line or "exception" in lower_line) and \
-                   not ("error catching" in lower_line or 
-                        "error handling" in lower_line or 
-                        "graceful degradation" in lower_line or
-                        "text processing fixes applied" in lower_line):
-                    logger.warning(f"Error in session {session_id}: {decoded_line.strip()}")
+
+                # Accumulate data in buffer
+                buffer += chunk.decode('utf-8', errors='replace')
+
+                # Process all complete lines in the buffer
+                while '\n' in buffer:
+                    line, _, buffer = buffer.partition('\n')
+
+                    # Strip ANSI codes and clean the line
+                    cleaned_line = ANSI_ESCAPE_PATTERN.sub('', line).strip()
+
+                    if cleaned_line:
+                        yield cleaned_line + '\n'
+
+                        # Log significant actual errors (not informational messages)
+                        lower_line = cleaned_line.lower()
+                        if "error parsing dimension value" in lower_line:
+                            # Expected CSS parsing warnings - already handled
+                            pass
+                        elif ("error" in lower_line or "exception" in lower_line) and \
+                             not ("error catching" in lower_line or
+                                  "error handling" in lower_line or
+                                  "graceful degradation" in lower_line or
+                                  "text processing fixes applied" in lower_line):
+                            logger.warning(f"Error in session {session_id}: {cleaned_line}")
+
+            # Yield any remaining data in buffer after loop ends
+            if buffer:
+                cleaned_buffer = ANSI_ESCAPE_PATTERN.sub('', buffer).strip()
+                if cleaned_buffer:
+                    yield cleaned_buffer + '\n'
+                    logger.debug(f"Final buffer content: {cleaned_buffer[:100]}...")
                     
             # Wait for process to complete
             return_code = await process.wait()
