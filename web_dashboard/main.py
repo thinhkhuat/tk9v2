@@ -299,14 +299,25 @@ async def start_research_session(session_id: str, subject: str, language: str):
         if files:
             # Notify clients that files are available using structured events
             for file in files:
+                # Extract file extension for file_type
+                file_extension = file.filename.rsplit('.', 1)[-1] if '.' in file.filename else 'unknown'
+
+                # Extract language from filename (e.g., "research_report_vi.pdf" -> "vi")
+                # If no language code, default to "en"
+                filename_parts = file.filename.rsplit('.', 1)[0].split('_')
+                language = filename_parts[-1] if len(filename_parts) > 2 and len(filename_parts[-1]) <= 3 else "en"
+
+                # Generate file_id from filename (use filename without extension as unique ID)
+                file_id = file.filename.rsplit('.', 1)[0]
+
                 file_event = create_file_generated_event(
                     session_id=session_id,
-                    file_id=file.file_id,
+                    file_id=file_id,
                     filename=file.filename,
-                    file_type=file.file_type,
-                    language=file.language,
-                    size_bytes=file.size_bytes,
-                    path=file.download_url
+                    file_type=file_extension,
+                    language=language,
+                    size_bytes=file.size or 0,  # Use 0 if size is None
+                    path=file.url
                 )
                 await websocket_manager.send_event(session_id, file_event)
         else:

@@ -5,6 +5,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { useToast } from 'vue-toastification'
 import type {
   WebSocketEvent,
   AgentUpdatePayload,
@@ -15,6 +16,16 @@ import type {
   AgentStatus,
   ResearchStatus
 } from '@/types/events'
+
+const toast = useToast()
+
+// Agent pipeline order (Phase 4: Agent Flow Visualization)
+// NOTE: Reviewer and Reviser are DISABLED in the backend workflow for performance optimization
+// Full workflow: Browser → Editor → Researcher → Writer → Publisher → Translator → Orchestrator
+const AGENT_PIPELINE_ORDER = [
+  'Browser', 'Editor', 'Researcher', 'Writer',
+  'Publisher', 'Translator', 'Orchestrator'
+]
 
 export const useSessionStore = defineStore('session', () => {
   // ============================================================================
@@ -39,10 +50,15 @@ export const useSessionStore = defineStore('session', () => {
   const overallStatus = ref<ResearchStatus>('initializing')
   const currentStage = ref<string>('Idle')
   const agentsCompleted = ref(0)
-  const agentsTotal = ref(8)
+  const agentsTotal = ref(7)  // 7 active agents (Browser, Editor, Researcher, Writer, Publisher, Translator, Orchestrator)
 
   // Error state
   const lastError = ref<ErrorPayload | null>(null)
+
+  // UI State Management (Phase 3)
+  const isLoading = ref(true) // Start true for initial hydration check
+  const isSubmitting = ref(false) // Track form submission state
+  const appError = ref<string | null>(null) // App-level errors (API, network, etc.)
 
   // WebSocket instance
   let ws: WebSocket | null = null
@@ -51,20 +67,44 @@ export const useSessionStore = defineStore('session', () => {
   // Computed Properties
   // ============================================================================
 
+  // Phase 4: Agent flow visualization - ordered agents computed first (needed by other computeds)
+  const orderedAgents = computed(() => {
+    return AGENT_PIPELINE_ORDER.map(agentName => {
+      // KEY FIX: Direct O(1) lookup using agent_name as key
+      // This is much faster and more reliable than Array.from().find()
+      const agentData = agents.value.get(agentName)
+
+      // Return actual data or default pending state
+      return agentData || {
+        agent_id: agentName.toLowerCase(),
+        agent_name: agentName,
+        status: 'pending' as const,
+        progress: null, // Phase 2: No artificial progress
+        message: 'Waiting to start...'
+      }
+    })
+  })
+
+  // Summary statistics computed from orderedAgents (not raw agents Map)
+  // This ensures cards and summary always match
   const activeAgent = computed(() => {
-    return Array.from(agents.value.values()).find(a => a.status === 'running')
+    return orderedAgents.value.find(a => a.status === 'running')
+  })
+
+  const runningAgents = computed(() => {
+    return orderedAgents.value.filter(a => a.status === 'running')
   })
 
   const completedAgents = computed(() => {
-    return Array.from(agents.value.values()).filter(a => a.status === 'completed')
+    return orderedAgents.value.filter(a => a.status === 'completed')
   })
 
   const pendingAgents = computed(() => {
-    return Array.from(agents.value.values()).filter(a => a.status === 'pending')
+    return orderedAgents.value.filter(a => a.status === 'pending')
   })
 
   const failedAgents = computed(() => {
-    return Array.from(agents.value.values()).filter(a => a.status === 'error')
+    return orderedAgents.value.filter(a => a.status === 'error')
   })
 
   const isResearchRunning = computed(() => {
@@ -107,7 +147,10 @@ export const useSessionStore = defineStore('session', () => {
     }
 
     // Create new WebSocket connection
-    ws = new WebSocket(`ws://localhost:12656/ws/${sessionIdParam}`)
+    // Use environment variable or construct from current location
+    const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL || 
+      (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host
+    ws = new WebSocket(`${wsBaseUrl}/ws/${sessionIdParam}`)
 
     ws.onopen = () => {
       wsStatus.value = 'connected'
@@ -193,17 +236,21 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   function handleAgentUpdate(payload: AgentUpdatePayload) {
-    // Update agent state
-    agents.value.set(payload.agent_id, payload)
+    // Update agent state - KEY FIX: Use agent_name as key (not agent_id)
+    // This aligns with how orderedAgents computed property looks up agents
+    agents.value.set(payload.agent_name, payload)
 
-    // Update overall progress (average of all agents)
+    // Update overall progress (average of agents with explicit progress)
     const allAgents = Array.from(agents.value.values())
-    if (allAgents.length > 0) {
-      const avgProgress = allAgents.reduce((sum, a) => sum + a.progress, 0) / allAgents.length
+    const agentsWithProgress = allAgents.filter(a => a.progress !== null)
+
+    if (agentsWithProgress.length > 0) {
+      const avgProgress = agentsWithProgress.reduce((sum, a) => sum + (a.progress || 0), 0) / agentsWithProgress.length
       overallProgress.value = Math.round(avgProgress)
     }
 
-    console.log(`🤖 Agent ${payload.agent_name}: ${payload.status} (${payload.progress}%)`)
+    const progressStr = payload.progress !== null ? `${payload.progress}%` : 'status update'
+    console.log(`🤖 Agent ${payload.agent_name}: ${payload.status} (${progressStr})`)
   }
 
   function handleFileGenerated(payload: FileGeneratedPayload) {
@@ -221,6 +268,13 @@ export const useSessionStore = defineStore('session', () => {
     agentsTotal.value = payload.agents_total
 
     console.log(`📊 Research status: ${payload.overall_status} (${payload.progress}%)`)
+
+    // Show toast notification on completion
+    if (payload.overall_status === 'completed') {
+      toast.success('🎉 Research completed successfully! Files are ready for download.')
+    } else if (payload.overall_status === 'failed') {
+      toast.error('❌ Research failed. Please check the error logs.')
+    }
   }
 
   function handleLog(payload: LogPayload) {
@@ -255,16 +309,62 @@ export const useSessionStore = defineStore('session', () => {
     overallStatus.value = 'initializing'
     currentStage.value = 'Idle'
     agentsCompleted.value = 0
-    agentsTotal.value = 8
+    agentsTotal.value = 7
     lastError.value = null
 
     disconnect()
   }
 
+  async function startNewSession(subject: string, language: string) {
+    /**
+     * Start a new research session (Phase 3: centralized in store)
+     */
+    isSubmitting.value = true
+    appError.value = null
+
+    try {
+      // Reset any previous session data
+      reset()
+
+      // Submit research via API
+      const { api } = await import('@/services/api')
+      const response = await api.submitResearch(subject, language)
+
+      // Save session ID
+      localStorage.setItem('tk9_session_id', response.session_id)
+      sessionId.value = response.session_id
+
+      // Connect WebSocket for real-time updates
+      connect(response.session_id)
+
+      console.log('✅ New research session started:', response.session_id)
+      toast.success('Research started successfully!') // Phase 3: Success toast
+    } catch (error) {
+      console.error('Failed to submit research:', error)
+      const errorMsg = 'There was a problem starting the research. Please try again.'
+      appError.value = errorMsg
+      toast.error(errorMsg) // Phase 3: Toast notification
+    } finally {
+      isSubmitting.value = false
+    }
+  }
+
+  function initializeNew() {
+    /**
+     * Initialize a fresh state (no session to rehydrate)
+     */
+    reset()
+    isLoading.value = false
+  }
+
   async function rehydrate(sessionIdParam: string) {
     /**
      * Re-hydrate store from server state (for reconnection after page refresh)
+     * Phase 3: Enhanced with proper loading/error states
      */
+    isLoading.value = true
+    appError.value = null
+
     try {
       // Fetch current session state from server
       const { api } = await import('@/services/api')
@@ -307,9 +407,13 @@ export const useSessionStore = defineStore('session', () => {
       connect(sessionIdParam)
     } catch (error) {
       console.error('Failed to re-hydrate session:', error)
+      const errorMsg = 'Failed to restore your previous session. Please start a new research project.'
+      appError.value = errorMsg
+      toast.error(errorMsg) // Phase 3: Toast notification
       // If session doesn't exist on server, clear localStorage
       localStorage.removeItem('tk9_session_id')
-      throw error
+    } finally {
+      isLoading.value = false
     }
   }
 
@@ -330,9 +434,14 @@ export const useSessionStore = defineStore('session', () => {
     agentsCompleted,
     agentsTotal,
     lastError,
+    // Phase 3: UI State
+    isLoading,
+    isSubmitting,
+    appError,
 
     // Computed
     activeAgent,
+    runningAgents,
     completedAgents,
     pendingAgents,
     failedAgents,
@@ -342,12 +451,17 @@ export const useSessionStore = defineStore('session', () => {
     recentLogs,
     totalFilesGenerated,
     totalFileSize,
+    // Phase 4: Agent flow visualization
+    orderedAgents,
 
     // Actions
     connect,
     disconnect,
     clearError,
     reset,
-    rehydrate
+    rehydrate,
+    // Phase 3: New Actions
+    startNewSession,
+    initializeNew
   }
 })
