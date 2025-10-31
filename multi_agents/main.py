@@ -154,16 +154,16 @@ def open_task():
 
     return task
 
-async def run_research_task(query, websocket=None, stream_output=None, tone=Tone.Objective, headers=None, write_to_files=True, language=None):
+async def run_research_task(query, websocket=None, stream_output=None, tone=Tone.Objective, headers=None, write_to_files=True, language=None, session_id=None):
     task = open_task()
     task["query"] = query
-    
+
     # Apply language configuration if provided
     if language:
         task["language"] = language
 
-    chief_editor = ChiefEditorAgent(task, websocket, stream_output, tone, headers, write_to_files)
-    research_report = await chief_editor.run_research_task()
+    chief_editor = ChiefEditorAgent(task, websocket, stream_output, tone, headers, write_to_files, task_id=session_id)
+    research_report = await chief_editor.run_research_task(task_id=session_id)
 
     if websocket and stream_output:
         await stream_output("logs", "research_report", research_report, websocket)
@@ -282,7 +282,9 @@ Examples:
                        help='Research tone')
     parser.add_argument('--verbose', action='store_true',
                        help='Enable verbose output')
-    
+    parser.add_argument('--session-id', type=str, default=None,
+                       help='Session ID for web dashboard integration (overrides timestamp-based directory naming)')
+
     args = parser.parse_args()
     
     # Handle configuration validation
@@ -302,20 +304,25 @@ Examples:
     # Run research task
     if args.research:
         # Custom research query
+        # Use session_id if provided, otherwise generate a new UUID
+        task_id = args.session_id if args.session_id else str(uuid.uuid4())
         research_report = await run_research_task(
             query=args.research,
             tone=tone_enum,
             language=args.language,
-            write_to_files=True
+            write_to_files=True,
+            session_id=task_id
         )
     else:
         # Default task from task.json
         task = open_task()
         if args.language:
             task["language"] = args.language
-            
-        chief_editor = ChiefEditorAgent(task, write_to_files=True, tone=tone_enum)
-        research_report = await chief_editor.run_research_task(task_id=uuid.uuid4())
+
+        # Use session_id if provided, otherwise generate a new UUID
+        task_id = args.session_id if args.session_id else str(uuid.uuid4())
+        chief_editor = ChiefEditorAgent(task, write_to_files=True, tone=tone_enum, task_id=task_id)
+        research_report = await chief_editor.run_research_task(task_id=task_id)
     
     return research_report
 

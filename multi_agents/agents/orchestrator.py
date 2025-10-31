@@ -60,13 +60,14 @@ from . import \
 class ChiefEditorAgent:
     """Agent responsible for managing and coordinating editing tasks."""
 
-    def __init__(self, task: Dict[str, Any], websocket=None, stream_output=None, tone=None, headers=None, write_to_files: bool = False):
+    def __init__(self, task: Dict[str, Any], websocket=None, stream_output=None, tone=None, headers=None, write_to_files: bool = False, task_id=None):
         self.task = task
         self.websocket = websocket
         self.stream_output = stream_output
         self.headers = headers or {}
         self.tone = tone
-        self.task_id = self._generate_task_id()
+        # Use provided task_id (from web dashboard) or generate timestamp-based ID
+        self.task_id = task_id if task_id is not None else self._generate_task_id()
         self.output_dir = self._create_output_directory() if write_to_files else None
         
         # Initialize draft manager if writing to files
@@ -84,9 +85,20 @@ class ChiefEditorAgent:
 
     def _create_output_directory(self):
         query = safe_dict_get(self.task, 'query', 'unknown_query', str)
-        output_dir = "./outputs/" + \
-            sanitize_filename(
-                f"run_{self.task_id}_{query[0:40]}")
+
+        # Check if task_id is a UUID (from web dashboard)
+        # UUIDs are strings with dashes (e.g., "f84a84cb-dc65-4321-abe1-169c502ad2fe")
+        # Traditional task_ids are integers (timestamps)
+        is_uuid = isinstance(self.task_id, str) and '-' in str(self.task_id)
+
+        if is_uuid:
+            # Web dashboard session - use session_id directly
+            output_dir = f"./outputs/{self.task_id}"
+        else:
+            # CLI manual run - use traditional run_timestamp_query format
+            output_dir = "./outputs/" + \
+                sanitize_filename(
+                    f"run_{self.task_id}_{query[0:40]}")
 
         os.makedirs(output_dir, exist_ok=True)
         return output_dir
