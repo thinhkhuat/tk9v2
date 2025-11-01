@@ -857,9 +857,104 @@ async def get_download_history(limit: int = 10):
 
 async def start_research_session(session_id: str, subject: str, language: str):
     """Start a research session and stream output via WebSocket"""
+    file_watcher_task = None  # Initialize for cleanup
+
     try:
         # Track files we've already sent events for (to avoid duplicates)
-        sent_files = set()
+        sent_files = set()  # Now stores only filenames
+        last_seen_sizes = {}  # Track file sizes to detect stability
+
+        # Define OUTPUTS_BASE_DIR for security validation
+        OUTPUTS_BASE_DIR = Path("outputs/").resolve()
+
+        async def _process_new_file(file, session_id: str):
+            """
+            Process a single file: extract metadata, validate security, save to DB, create event.
+            Returns the WebSocket event on success, None on failure.
+
+            Security: Uses pathlib.resolve() to prevent path traversal
+            """
+            try:
+                # SECURITY FIX: Validate session_id format (alphanumeric only)
+                if not session_id.replace("-", "").replace("_", "").isalnum():
+                    logger.error(f"Security: Invalid session_id format: {session_id}")
+                    return None
+
+                # Extract file extension from BOTH filename AND url (defensive)
+                # Priority: filename extension > url extension > "unknown"
+                file_extension = None
+
+                # Try filename first
+                if file.filename and "." in file.filename:
+                    file_extension = file.filename.rsplit(".", 1)[-1].lower()
+
+                # Fallback to URL if filename doesn't have extension
+                if not file_extension and file.url and "." in file.url:
+                    url_filename = file.url.split("/")[-1]
+                    if "." in url_filename:
+                        file_extension = url_filename.rsplit(".", 1)[-1].lower()
+
+                # Final fallback
+                if not file_extension or file_extension in ["", "undefined", "null"]:
+                    file_extension = "unknown"
+                    logger.warning(f"Could not detect file type for {file.filename}, using 'unknown'")
+
+                # Extract language from filename
+                filename_parts = file.filename.rsplit(".", 1)[0].split("_") if file.filename else []
+                lang = (
+                    filename_parts[-1]
+                    if len(filename_parts) > 2 and len(filename_parts[-1]) <= 3
+                    else "en"
+                )
+                file_id = file.filename.rsplit(".", 1)[0] if file.filename else f"file_{file.size}"
+
+                logger.info(f"📋 File metadata: {file.filename} → type={file_extension}, lang={lang}")
+
+                # SECURITY FIX: Robust path validation using pathlib
+                actual_filename = urllib.parse.unquote(file.url.split('/')[-1])
+
+                # Prevent filename from containing path characters
+                if '/' in actual_filename or '\\' in actual_filename or '..' in actual_filename:
+                    logger.error(f"Security: Invalid characters in filename: {actual_filename}")
+                    return None
+
+                # Construct the path safely
+                filesystem_path = OUTPUTS_BASE_DIR / session_id / actual_filename
+
+                # Resolve to absolute form and verify it's within safe zone
+                resolved_path = filesystem_path.resolve()
+
+                if OUTPUTS_BASE_DIR not in resolved_path.parents:
+                    logger.error(f"Security Violation: Path traversal attempt. "
+                               f"Resolved '{resolved_path}' not inside '{OUTPUTS_BASE_DIR}'")
+                    return None
+
+                # Path is now verified as safe - insert into database
+                db_success = await database.create_draft_file(
+                    session_id=session_id,
+                    file_path=str(resolved_path),  # Use safe, resolved path
+                    file_size_bytes=file.size or 0,
+                    stage="4_writing",
+                )
+
+                if db_success:
+                    # Create and return WebSocket event
+                    return create_file_generated_event(
+                        session_id=session_id,
+                        file_id=file_id,
+                        filename=file.filename,
+                        file_type=file_extension,
+                        language=lang,
+                        size_bytes=file.size or 0,
+                        path=file.url,
+                    )
+                else:
+                    logger.error(f"DB insert failed for {file.filename}")
+                    return None
+
+            except Exception as e:
+                logger.error(f"Error processing file {file.filename}: {e}")
+                return None
 
         # Start file watcher task that runs CONCURRENTLY with CLI
         async def watch_and_send_files():
@@ -872,78 +967,30 @@ async def start_research_session(session_id: str, subject: str, language: str):
                     # Discover files in session directory
                     current_files = await file_manager.discover_session_files(session_id)
 
-                    # Send events for NEW files only
+                    # Send events for NEW files only (after size stabilizes)
                     for file in current_files:
-                        file_key = (file.filename, file.size)  # Unique identifier
-                        if file_key not in sent_files:
-                            sent_files.add(file_key)
+                        if file.filename in sent_files:
+                            continue  # Already processed
 
-                            # Extract file extension from BOTH filename AND url (defensive)
-                            # Priority: filename extension > url extension > "unknown"
-                            file_extension = None
-
-                            # Try filename first
-                            if file.filename and "." in file.filename:
-                                file_extension = file.filename.rsplit(".", 1)[-1].lower()
-
-                            # Fallback to URL if filename doesn't have extension
-                            if not file_extension and file.url and "." in file.url:
-                                # Extract from URL: /download/session_id/actual_file.pdf → pdf
-                                url_filename = file.url.split("/")[-1]
-                                if "." in url_filename:
-                                    file_extension = url_filename.rsplit(".", 1)[-1].lower()
-
-                            # Final fallback
-                            if not file_extension or file_extension in ["", "undefined", "null"]:
-                                file_extension = "unknown"
-                                logger.warning(f"Could not detect file type for {file.filename}, using 'unknown'")
-
-                            # Extract language from filename
-                            filename_parts = file.filename.rsplit(".", 1)[0].split("_") if file.filename else []
-                            lang = (
-                                filename_parts[-1]
-                                if len(filename_parts) > 2 and len(filename_parts[-1]) <= 3
-                                else "en"
-                            )
-                            file_id = file.filename.rsplit(".", 1)[0] if file.filename else f"file_{file.size}"
-
-                            logger.info(f"📋 File metadata: {file.filename} → type={file_extension}, lang={lang}")
-
-                            # Insert into database
-                            actual_filename = urllib.parse.unquote(file.url.split('/')[-1])
-                            filesystem_path = f"outputs/{session_id}/{actual_filename}"
-
-                            # Security validation
-                            if '..' in filesystem_path or filesystem_path.startswith('/'):
-                                logger.error(f"Security: Invalid file path: {filesystem_path}")
-                                continue
-
-                            # Insert into database
-                            db_success = await database.create_draft_file(
-                                session_id=session_id,
-                                file_path=filesystem_path,
-                                file_size_bytes=file.size or 0,
-                                stage="4_writing",
-                            )
-
-                            if db_success:
-                                # Send WebSocket event IMMEDIATELY
-                                file_event = create_file_generated_event(
-                                    session_id=session_id,
-                                    file_id=file_id,
-                                    filename=file.filename,
-                                    file_type=file_extension,
-                                    language=lang,
-                                    size_bytes=file.size or 0,
-                                    path=file.url,
-                                )
+                        # CORRECTNESS FIX: Check if file size has stabilized
+                        previous_size = last_seen_sizes.get(file.filename)
+                        if previous_size == file.size:
+                            # Size is stable - file is complete, process it
+                            file_event = await _process_new_file(file, session_id)
+                            if file_event:
                                 await websocket_manager.send_event(session_id, file_event)
                                 logger.info(f"📄 Sent real-time event for: {file.filename}")
-                            else:
-                                logger.error(f"DB insert failed for {file.filename}")
+                                sent_files.add(file.filename)
+                                # Cleanup size tracking
+                                if file.filename in last_seen_sizes:
+                                    del last_seen_sizes[file.filename]
+                        else:
+                            # File is new or still growing - track size and wait
+                            last_seen_sizes[file.filename] = file.size
+                            logger.debug(f"File {file.filename} size: {file.size} (waiting for stability)")
 
                 except Exception as e:
-                    logger.error(f"Error in file watcher: {e}")
+                    logger.error(f"Error in file watcher loop: {e}")
 
                 # Check every 2 seconds for new files
                 await asyncio.sleep(2)
@@ -999,6 +1046,16 @@ async def start_research_session(session_id: str, subject: str, language: str):
             recoverable=False,
         )
         await websocket_manager.send_event(session_id, error_event)
+
+    finally:
+        # ROBUSTNESS FIX: Ensure background task is always cancelled
+        if file_watcher_task and not file_watcher_task.done():
+            file_watcher_task.cancel()
+            try:
+                # Give the task a moment to process the cancellation
+                await file_watcher_task
+            except asyncio.CancelledError:
+                logger.info(f"File watcher task for session {session_id} cancelled successfully")
 
 
 async def periodic_cleanup():
