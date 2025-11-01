@@ -4,10 +4,9 @@
  */
 
 import axios, { type AxiosInstance, type AxiosError } from 'axios'
-
-// API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:12656'
-const API_TIMEOUT = 30000 // 30 seconds
+import { MIN_SUBJECT_LENGTH, MAX_SUBJECT_LENGTH } from '@/config/validation'
+import { API_BASE_URL, API_TIMEOUT, FILE_DOWNLOAD_TIMEOUT } from '@/config/api'
+import { guessFileTypeFromFilename, isBinaryFileType } from '@/utils/file-display-utils'
 
 // Response Types
 export interface ResearchResponse {
@@ -70,10 +69,12 @@ const apiClient: AxiosInstance = axios.create({
   timeout: API_TIMEOUT,
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  // CRITICAL: Send cookies with every request (required for JWT authentication)
+  withCredentials: true
 })
 
-// Request interceptor for logging and debugging
+// Request interceptor for logging and debugging + JWT authentication
 apiClient.interceptors.request.use(
   (config) => {
     const method = config.method?.toUpperCase()
@@ -83,6 +84,36 @@ apiClient.interceptors.request.use(
     // Add timestamp to request
     config.metadata = { startTime: Date.now() }
 
+    // Add JWT token from Supabase session to Authorization header
+    // Supabase stores session in localStorage with key format: sb-{project-ref}-auth-token
+    // Extract project ref from Supabase URL for dynamic key construction
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+    const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1]
+
+    if (projectRef) {
+      const supabaseSessionKey = `sb-${projectRef}-auth-token`
+      const supabaseSession = localStorage.getItem(supabaseSessionKey)
+
+      if (supabaseSession) {
+        try {
+          const session = JSON.parse(supabaseSession)
+          const accessToken = session?.access_token
+          if (accessToken) {
+            config.headers.Authorization = `Bearer ${accessToken}`
+            console.log('[API] Added JWT to request from', supabaseSessionKey)
+          } else {
+            console.warn('[API] Session found but no access_token:', session)
+          }
+        } catch (e) {
+          console.error('[API] Failed to parse Supabase session:', e)
+        }
+      } else {
+        console.warn('[API] No Supabase session found at key:', supabaseSessionKey)
+      }
+    } else {
+      console.error('[API] Could not extract project ref from Supabase URL:', supabaseUrl)
+    }
+
     return config
   },
   (error) => {
@@ -90,6 +121,58 @@ apiClient.interceptors.request.use(
     return Promise.reject(error)
   }
 )
+
+/**
+ * Parse FastAPI/Pydantic validation errors into user-friendly messages
+ */
+function parseValidationError(error: AxiosError): string {
+  const data = error.response?.data as any
+
+  // Check if it's a FastAPI validation error (422)
+  if (error.response?.status === 422 && data?.detail && Array.isArray(data.detail)) {
+    const errors = data.detail.map((err: any) => {
+      const field = err.loc?.[err.loc.length - 1] || 'field'
+      const message = err.msg || 'Invalid value'
+
+      // Enhanced messages for specific error types
+      if (err.type === 'string_too_long') {
+        const maxLength = err.ctx?.max_length || 'unknown'
+        return `${field}: Maximum ${maxLength} characters allowed`
+      } else if (err.type === 'string_too_short') {
+        const minLength = err.ctx?.min_length || 'unknown'
+        return `${field}: Minimum ${minLength} characters required`
+      } else if (err.type === 'value_error') {
+        return `${field}: ${message}`
+      } else {
+        return `${field}: ${message}`
+      }
+    })
+
+    return errors.join('; ')
+  }
+
+  // Check for other error formats
+  if (data?.message) {
+    return data.message
+  }
+
+  if (data?.detail && typeof data.detail === 'string') {
+    return data.detail
+  }
+
+  // Fallback to status-based messages
+  if (error.response?.status === 401) {
+    return 'Authentication required. Please sign in.'
+  } else if (error.response?.status === 403) {
+    return 'You do not have permission to perform this action.'
+  } else if (error.response?.status === 404) {
+    return 'The requested resource was not found.'
+  } else if (error.response?.status === 500) {
+    return 'Server error. Please try again later.'
+  }
+
+  return 'An unexpected error occurred. Please try again.'
+}
 
 // Response interceptor for logging and error handling
 apiClient.interceptors.response.use(
@@ -119,6 +202,9 @@ apiClient.interceptors.response.use(
       console.error('Request setup error:', error.message)
     }
 
+    // Attach parsed user-friendly message to error
+    error.message = parseValidationError(error)
+
     return Promise.reject(error)
   }
 )
@@ -132,10 +218,26 @@ export const api = {
    * Submit a new research request
    */
   async submitResearch(subject: string, language: string = 'vi'): Promise<ResearchResponse> {
+    const trimmedSubject = subject.trim()
+
+    // Client-side validation (constraints from config/validation.ts)
+    if (!trimmedSubject) {
+      throw new Error('Research subject is required')
+    }
+
+    if (trimmedSubject.length < MIN_SUBJECT_LENGTH) {
+      throw new Error(`Research subject must be at least ${MIN_SUBJECT_LENGTH} characters long`)
+    }
+
+    if (trimmedSubject.length > MAX_SUBJECT_LENGTH) {
+      throw new Error(`Research subject must be at most ${MAX_SUBJECT_LENGTH} characters long`)
+    }
+
     try {
       const response = await apiClient.post<ResearchResponse>('/api/research', {
-        subject,
-        language
+        subject: trimmedSubject,
+        language,
+        save_files: true // Backend expects this field
       })
       return response.data
     } catch (error) {
@@ -205,7 +307,7 @@ export const api = {
     try {
       const response = await apiClient.get(`/api/session/${sessionId}/zip`, {
         responseType: 'blob',
-        timeout: 60000 // 60 seconds for large ZIPs
+        timeout: FILE_DOWNLOAD_TIMEOUT
       })
       return response.data
     } catch (error) {
@@ -304,6 +406,128 @@ export const api = {
       console.error('Health check failed:', error)
       throw error
     }
+  },
+
+  /**
+   * Get file content for preview
+   * Returns file content as string for text files or ArrayBuffer for binary files
+   */
+  async getFileContent(fileId: string, filePath: string): Promise<string | ArrayBuffer> {
+    try {
+      // PRE-REQUEST: Guess file type from filename to determine response format
+      // This is a legitimate use case - we need to tell axios the responseType BEFORE the request
+      const fileType = guessFileTypeFromFilename(filePath)
+      const isBinary = isBinaryFileType(fileType)
+
+      const response = await apiClient.get(`/api/files/content`, {
+        params: { file_id: fileId, file_path: filePath },
+        responseType: isBinary ? 'arraybuffer' : 'text',
+        timeout: FILE_DOWNLOAD_TIMEOUT
+      })
+
+      return response.data
+    } catch (error) {
+      console.error(`Failed to get file content for ${filePath}:`, error)
+      throw error
+    }
+  },
+
+  // ============================================================================
+  // Session Management APIs
+  // ============================================================================
+
+  /**
+   * Get sessions list with filters and pagination
+   */
+  async getSessions(params: {
+    include_archived?: boolean
+    status?: string | null
+    language?: string | null
+    limit?: number
+    offset?: number
+  }): Promise<{
+    sessions: any[]
+    total_count: number
+    limit: number
+    offset: number
+    has_more: boolean
+  }> {
+    try {
+      const response = await apiClient.get('/api/sessions/list', { params })
+      return response.data
+    } catch (error) {
+      console.error('Failed to get sessions:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Archive a session (soft delete)
+   */
+  async archiveSession(sessionId: string): Promise<void> {
+    try {
+      await apiClient.post(`/api/sessions/${sessionId}/archive`)
+    } catch (error) {
+      console.error(`Failed to archive session ${sessionId}:`, error)
+      throw error
+    }
+  },
+
+  /**
+   * Restore an archived session
+   */
+  async restoreSession(sessionId: string): Promise<void> {
+    try {
+      await apiClient.post(`/api/sessions/${sessionId}/restore`)
+    } catch (error) {
+      console.error(`Failed to restore session ${sessionId}:`, error)
+      throw error
+    }
+  },
+
+  /**
+   * Permanently delete a session
+   */
+  async deleteSession(sessionId: string): Promise<void> {
+    try {
+      await apiClient.delete(`/api/sessions/${sessionId}`)
+    } catch (error) {
+      console.error(`Failed to delete session ${sessionId}:`, error)
+      throw error
+    }
+  },
+
+  /**
+   * Duplicate a session
+   */
+  async duplicateSession(sessionId: string): Promise<{
+    message: string
+    original_session_id: string
+    new_session_id: string
+  }> {
+    try {
+      const response = await apiClient.post(`/api/sessions/${sessionId}/duplicate`)
+      return response.data
+    } catch (error) {
+      console.error(`Failed to duplicate session ${sessionId}:`, error)
+      throw error
+    }
+  },
+
+  /**
+   * Compare multiple sessions
+   */
+  async compareSessions(sessionIds: string[]): Promise<{
+    sessions: any[]
+    count: number
+  }> {
+    try {
+      const response = await apiClient.post('/api/sessions/compare', sessionIds)
+      return response.data
+    } catch (error) {
+      console.error('Failed to compare sessions:', error)
+      throw error
+    }
   }
 }
 
@@ -321,18 +545,8 @@ export function triggerFileDownload(blob: Blob, filename: string) {
   window.URL.revokeObjectURL(url)
 }
 
-/**
- * Format bytes to human-readable size
- */
-export function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 Bytes'
-
-  const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
-}
+// NOTE: formatFileSize() moved to @/utils/file-display-utils.ts to follow DRY principle
+// Import from there instead of duplicating here
 
 // Extend AxiosRequestConfig to include metadata
 declare module 'axios' {
