@@ -32,6 +32,7 @@ from cli_executor import CLIExecutor
 from config import settings
 from file_manager import FileManager
 from file_manager_enhanced import EnhancedFileManager
+from filename_utils import FilenameParser, SecurePathValidator
 from middleware.auth_middleware import verify_jwt_middleware
 from models import (
     ResearchRequest,
@@ -581,21 +582,24 @@ async def compare_sessions(session_ids: list[str], req: Request):
 @app.get("/download/{session_id}/{filename}")
 async def download_file(session_id: str, filename: str):
     """Download a research output file"""
-    # Validate filename
-    if not file_manager.is_valid_filename(filename):
+    # SECURITY: Validate filename using centralized module
+    # Replaces: file_manager.is_valid_filename()
+    if not FilenameParser.is_valid(filename):
         raise HTTPException(status_code=400, detail="Invalid filename")
 
-    # Get file path
+    # Get file path (still using file_manager for path resolution)
     file_path = file_manager.get_file_path(session_id, filename)
 
     if not file_path:
         raise HTTPException(status_code=404, detail="File not found")
 
-    # Get proper MIME type
-    mime_type = file_manager.get_mime_type(filename)
+    # Get proper MIME type using centralized parser
+    # Replaces: file_manager.get_mime_type()
+    mime_type = FilenameParser.get_mime_type(filename)
 
-    # Create a user-friendly download filename from UUID-based filename
-    friendly_name = file_manager.create_friendly_filename_from_uuid(file_path.name)
+    # Create user-friendly download filename using centralized converter
+    # Replaces: file_manager.create_friendly_filename_from_uuid()
+    friendly_name = FilenameParser.to_friendly_name(file_path.name)
 
     return FileResponse(path=file_path, filename=friendly_name, media_type=mime_type)
 
@@ -817,11 +821,16 @@ async def get_session_statistics(session_id: str):
                     ext = file_path.suffix.lower()
                     response["file_types"][ext] = response["file_types"].get(ext, 0) + 1
 
-                    # Detect languages from filename
-                    if "_vi" in file_path.name:
-                        languages_set.add("Vietnamese")
-                    elif "_en" in file_path.name:
-                        languages_set.add("English")
+                    # Detect languages from filename using centralized parser
+                    # Replaces: Manual string checking for _vi, _en patterns
+                    language = FilenameParser.extract_language(file_path.name)
+                    language_name = {
+                        Language.ENGLISH: "English",
+                        Language.VIETNAMESE: "Vietnamese",
+                        Language.SPANISH: "Spanish",
+                        Language.FRENCH: "French"
+                    }.get(language, language.value.capitalize())
+                    languages_set.add(language_name)
 
             response["languages"] = list(languages_set)
 
@@ -874,62 +883,42 @@ async def start_research_session(session_id: str, subject: str, language: str):
             Process a single file: extract metadata, validate security, save to DB, create event.
             Returns (file_key, event) on success, (None, None) on failure.
 
-            Security: Uses pathlib.resolve() to prevent path traversal
+            Security: Uses SecurePathValidator for path traversal prevention
             file_key: (filename, size) tuple uniquely identifying this file version
             """
             try:
-                # SECURITY FIX: Validate session_id format (alphanumeric only)
-                if not session_id.replace("-", "").replace("_", "").isalnum():
+                # SECURITY: Validate session_id using centralized validator
+                if not SecurePathValidator.validate_session_id(session_id):
                     logger.error(f"Security: Invalid session_id format: {session_id}")
                     return (None, None)
 
-                # Extract file extension from BOTH filename AND url (defensive)
-                # Priority: filename extension > url extension > "unknown"
-                file_extension = None
+                # EXTRACT METADATA: Use centralized FilenameParser
+                # Replaces 18 lines of scattered string manipulation
+                actual_filename = urllib.parse.unquote(file.url.split('/')[-1])
 
-                # Try filename first
-                if file.filename and "." in file.filename:
-                    file_extension = file.filename.rsplit(".", 1)[-1].lower()
+                # Extract file type (multi-layer fallback)
+                file_type = FilenameParser.extract_file_type(file.filename, file.url)
+                file_extension = file_type.value
 
-                # Fallback to URL if filename doesn't have extension
-                if not file_extension and file.url and "." in file.url:
-                    url_filename = file.url.split("/")[-1]
-                    if "." in url_filename:
-                        file_extension = url_filename.rsplit(".", 1)[-1].lower()
+                # Extract language from filename pattern
+                language = FilenameParser.extract_language(actual_filename)
+                lang = language.value
 
-                # Final fallback
-                if not file_extension or file_extension in ["", "undefined", "null"]:
-                    file_extension = "unknown"
-                    logger.warning(f"Could not detect file type for {file.filename}, using 'unknown'")
-
-                # Extract language from filename
-                filename_parts = file.filename.rsplit(".", 1)[0].split("_") if file.filename else []
-                lang = (
-                    filename_parts[-1]
-                    if len(filename_parts) > 2 and len(filename_parts[-1]) <= 3
-                    else "en"
-                )
+                # Generate file_id
                 file_id = file.filename.rsplit(".", 1)[0] if file.filename else f"file_{file.size}"
 
                 logger.info(f"📋 File metadata: {file.filename} → type={file_extension}, lang={lang}")
 
-                # SECURITY FIX: Robust path validation using pathlib
-                actual_filename = urllib.parse.unquote(file.url.split('/')[-1])
+                # SECURITY: Validate path using centralized secure validator
+                # Replaces 18 lines of manual pathlib validation
+                resolved_path = SecurePathValidator.resolve_safe_path(
+                    OUTPUTS_BASE_DIR,
+                    session_id,
+                    actual_filename
+                )
 
-                # Prevent filename from containing path characters
-                if '/' in actual_filename or '\\' in actual_filename or '..' in actual_filename:
-                    logger.error(f"Security: Invalid characters in filename: {actual_filename}")
-                    return (None, None)
-
-                # Construct the path safely
-                filesystem_path = OUTPUTS_BASE_DIR / session_id / actual_filename
-
-                # Resolve to absolute form and verify it's within safe zone
-                resolved_path = filesystem_path.resolve()
-
-                if OUTPUTS_BASE_DIR not in resolved_path.parents:
-                    logger.error(f"Security Violation: Path traversal attempt. "
-                               f"Resolved '{resolved_path}' not inside '{OUTPUTS_BASE_DIR}'")
+                if not resolved_path:
+                    logger.error(f"Security: Path validation failed for {actual_filename}")
                     return (None, None)
 
                 # Path is now verified as safe - insert into database
@@ -941,14 +930,17 @@ async def start_research_session(session_id: str, subject: str, language: str):
                 )
 
                 if db_success:
-                    # Create file_key to uniquely identify this file version
-                    file_key = (file.filename, file.size)
+                    # Use UUID filename from URL (unique) instead of generic "research_report"
+                    uuid_filename = file.url.split('/')[-1]  # Extract UUID filename from /download/{session_id}/{uuid_filename}
+
+                    # Create file_key to uniquely identify this file version (use UUID filename for uniqueness)
+                    file_key = (uuid_filename, file.size)
 
                     # Create and return WebSocket event
                     file_event = create_file_generated_event(
                         session_id=session_id,
                         file_id=file_id,
-                        filename=file.filename,
+                        filename=uuid_filename,  # Use UUID filename for uniqueness
                         file_type=file_extension,
                         language=lang,
                         size_bytes=file.size or 0,
