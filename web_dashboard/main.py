@@ -861,8 +861,10 @@ async def start_research_session(session_id: str, subject: str, language: str):
 
     try:
         # Track files we've already sent events for (to avoid duplicates)
-        sent_files = set()  # Now stores only filenames
-        last_seen_sizes = {}  # Track file sizes to detect stability
+        # KEY FIX: Use (filename, size) to uniquely identify file versions
+        # This handles file deletion + recreation scenarios
+        sent_file_keys = set()  # Stores (filename, size) tuples
+        last_seen_sizes = {}  # Track file sizes to detect stability (cleaned up after processing)
 
         # Define OUTPUTS_BASE_DIR for security validation
         OUTPUTS_BASE_DIR = Path("outputs/").resolve()
@@ -870,15 +872,16 @@ async def start_research_session(session_id: str, subject: str, language: str):
         async def _process_new_file(file, session_id: str):
             """
             Process a single file: extract metadata, validate security, save to DB, create event.
-            Returns the WebSocket event on success, None on failure.
+            Returns (file_key, event) on success, (None, None) on failure.
 
             Security: Uses pathlib.resolve() to prevent path traversal
+            file_key: (filename, size) tuple uniquely identifying this file version
             """
             try:
                 # SECURITY FIX: Validate session_id format (alphanumeric only)
                 if not session_id.replace("-", "").replace("_", "").isalnum():
                     logger.error(f"Security: Invalid session_id format: {session_id}")
-                    return None
+                    return (None, None)
 
                 # Extract file extension from BOTH filename AND url (defensive)
                 # Priority: filename extension > url extension > "unknown"
@@ -916,7 +919,7 @@ async def start_research_session(session_id: str, subject: str, language: str):
                 # Prevent filename from containing path characters
                 if '/' in actual_filename or '\\' in actual_filename or '..' in actual_filename:
                     logger.error(f"Security: Invalid characters in filename: {actual_filename}")
-                    return None
+                    return (None, None)
 
                 # Construct the path safely
                 filesystem_path = OUTPUTS_BASE_DIR / session_id / actual_filename
@@ -927,7 +930,7 @@ async def start_research_session(session_id: str, subject: str, language: str):
                 if OUTPUTS_BASE_DIR not in resolved_path.parents:
                     logger.error(f"Security Violation: Path traversal attempt. "
                                f"Resolved '{resolved_path}' not inside '{OUTPUTS_BASE_DIR}'")
-                    return None
+                    return (None, None)
 
                 # Path is now verified as safe - insert into database
                 db_success = await database.create_draft_file(
@@ -938,8 +941,11 @@ async def start_research_session(session_id: str, subject: str, language: str):
                 )
 
                 if db_success:
+                    # Create file_key to uniquely identify this file version
+                    file_key = (file.filename, file.size)
+
                     # Create and return WebSocket event
-                    return create_file_generated_event(
+                    file_event = create_file_generated_event(
                         session_id=session_id,
                         file_id=file_id,
                         filename=file.filename,
@@ -948,13 +954,14 @@ async def start_research_session(session_id: str, subject: str, language: str):
                         size_bytes=file.size or 0,
                         path=file.url,
                     )
+                    return (file_key, file_event)
                 else:
                     logger.error(f"DB insert failed for {file.filename}")
-                    return None
+                    return (None, None)
 
             except Exception as e:
                 logger.error(f"Error processing file {file.filename}: {e}")
-                return None
+                return (None, None)
 
         # Start file watcher task that runs CONCURRENTLY with CLI
         async def watch_and_send_files():
@@ -969,19 +976,24 @@ async def start_research_session(session_id: str, subject: str, language: str):
 
                     # Send events for NEW files only (after size stabilizes)
                     for file in current_files:
-                        if file.filename in sent_files:
-                            continue  # Already processed
+                        file_key = (file.filename, file.size)
+
+                        # Check if this exact file version already processed
+                        if file_key in sent_file_keys:
+                            continue  # Already processed this version
 
                         # CORRECTNESS FIX: Check if file size has stabilized
                         previous_size = last_seen_sizes.get(file.filename)
                         if previous_size == file.size:
                             # Size is stable - file is complete, process it
-                            file_event = await _process_new_file(file, session_id)
+                            processed_key, file_event = await _process_new_file(file, session_id)
+
                             if file_event:
                                 await websocket_manager.send_event(session_id, file_event)
                                 logger.info(f"📄 Sent real-time event for: {file.filename}")
-                                sent_files.add(file.filename)
-                                # Cleanup size tracking
+                                sent_file_keys.add(processed_key)
+
+                                # MEMORY LEAK FIX: Clean up size tracking after successful processing
                                 if file.filename in last_seen_sizes:
                                     del last_seen_sizes[file.filename]
                         else:
