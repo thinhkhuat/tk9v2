@@ -32,7 +32,7 @@ from cli_executor import CLIExecutor
 from config import settings
 from file_manager import FileManager
 from file_manager_enhanced import EnhancedFileManager
-from filename_utils import FilenameParser, SecurePathValidator
+from filename_utils import FilenameParser, SecurePathValidator, ParsedFilename
 from middleware.auth_middleware import verify_jwt_middleware
 from models import (
     ResearchRequest,
@@ -884,75 +884,72 @@ async def start_research_session(session_id: str, subject: str, language: str):
             Returns (file_key, event) on success, (None, None) on failure.
 
             Security: Uses SecurePathValidator for path traversal prevention
+            Performance: Parse filename ONCE to avoid redundant regex operations
             file_key: (filename, size) tuple uniquely identifying this file version
+
+            Gemini validated: session dc76fc08-66c7-4a0b-81b8-51994d09e66d
             """
             try:
-                # SECURITY: Validate session_id using centralized validator
+                # 1. SECURITY: Validate session_id format first
                 if not SecurePathValidator.validate_session_id(session_id):
                     logger.error(f"Security: Invalid session_id format: {session_id}")
                     return (None, None)
 
-                # EXTRACT METADATA: Use centralized FilenameParser
-                # Replaces 18 lines of scattered string manipulation
                 actual_filename = urllib.parse.unquote(file.url.split('/')[-1])
 
-                # Extract file type (multi-layer fallback)
-                file_type = FilenameParser.extract_file_type(file.filename, file.url)
-                file_extension = file_type.value
+                # 2. PARSE ONCE: Get rich ParsedFilename object with all metadata
+                # Replaces multiple redundant parse calls (was: extract_file_type() + extract_language())
+                parsed_file: Optional[ParsedFilename] = FilenameParser.parse(actual_filename)
 
-                # Extract language from filename pattern
-                language = FilenameParser.extract_language(actual_filename)
-                lang = language.value
+                if not parsed_file:
+                    logger.error(f"Metadata: Could not parse standard filename format: {actual_filename}. Aborting processing.")
+                    # Fail fast if filename doesn't match expected UUID pattern
+                    # This is safer than proceeding with incomplete data
+                    return (None, None)
 
-                # Generate file_id
-                file_id = file.filename.rsplit(".", 1)[0] if file.filename else f"file_{file.size}"
+                logger.info(f"📋 File metadata: {parsed_file.original_filename} → type={parsed_file.file_type.value}, lang={parsed_file.language.value}")
 
-                logger.info(f"📋 File metadata: {file.filename} → type={file_extension}, lang={lang}")
-
-                # SECURITY: Validate path using centralized secure validator
-                # Replaces 18 lines of manual pathlib validation
+                # 3. SECURITY: Validate path using centralized secure validator
                 resolved_path = SecurePathValidator.resolve_safe_path(
                     OUTPUTS_BASE_DIR,
                     session_id,
-                    actual_filename
+                    parsed_file.original_filename
                 )
 
                 if not resolved_path:
-                    logger.error(f"Security: Path validation failed for {actual_filename}")
+                    logger.error(f"Security: Path validation failed for {parsed_file.original_filename}")
                     return (None, None)
 
-                # Path is now verified as safe - insert into database
+                # 4. DATABASE: Path is safe, proceed with DB operation
                 db_success = await database.create_draft_file(
                     session_id=session_id,
-                    file_path=str(resolved_path),  # Use safe, resolved path
+                    file_path=str(resolved_path),
                     file_size_bytes=file.size or 0,
                     stage="4_writing",
                 )
 
                 if db_success:
-                    # Use UUID filename from URL (unique) instead of generic "research_report"
-                    uuid_filename = file.url.split('/')[-1]  # Extract UUID filename from /download/{session_id}/{uuid_filename}
-
-                    # Create file_key to uniquely identify this file version (use UUID filename for uniqueness)
-                    file_key = (uuid_filename, file.size)
+                    # Create file_key to uniquely identify this file version
+                    file_key = (parsed_file.original_filename, file.size)
 
                     # Create and return WebSocket event
                     file_event = create_file_generated_event(
                         session_id=session_id,
-                        file_id=file_id,
-                        filename=uuid_filename,  # Use UUID filename for uniqueness
-                        file_type=file_extension,
-                        language=lang,
+                        file_id=parsed_file.uuid,  # Use canonical UUID from parsed object
+                        filename=parsed_file.original_filename,
+                        file_type=parsed_file.file_type.value,
+                        language=parsed_file.language.value,
                         size_bytes=file.size or 0,
                         path=file.url,
                     )
                     return (file_key, file_event)
                 else:
-                    logger.error(f"DB insert failed for {file.filename}")
+                    logger.error(f"DB insert failed for {parsed_file.original_filename}")
                     return (None, None)
 
-            except Exception as e:
-                logger.error(f"Error processing file {file.filename}: {e}")
+            except Exception:
+                # Use logger.exception() to automatically capture stack trace
+                logger.exception(f"Unexpected error processing file: {getattr(file, 'url', 'N/A')}")
                 return (None, None)
 
         # Start file watcher task that runs CONCURRENTLY with CLI
