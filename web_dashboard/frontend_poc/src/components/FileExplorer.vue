@@ -6,8 +6,7 @@ import type { FileGeneratedPayload } from '@/types/events'
 import FilePreviewModal from './FilePreviewModal.vue'
 import {
   getFileTypeIcon,
-  guessFileTypeFromFilename,
-  normalizeFileData
+  guessFileTypeFromFilename
 } from '@/utils/file-display-utils'
 import { formatFileSize } from '@/utils/formatters'
 
@@ -39,13 +38,12 @@ const filesByType = computed(() => {
   return groups
 })
 
-// Get friendly filename from backend metadata
-function getFriendlyFilename(file: FileGeneratedPayload): string {
-  // Backend should provide friendly_name in the event
-  // If not available, fallback to a simple display format
-  if (!file.filename || !file.filename.includes('.')) return file.filename
+// Get friendly filename for display
+// TODO: Backend should eventually provide this in the WebSocket event
+function getFriendlyFilename(uuidFilename: string): string {
+  if (!uuidFilename || !uuidFilename.includes('.')) return uuidFilename
 
-  const parts = file.filename.split('.')
+  const parts = uuidFilename.split('.')
   const extension = parts[parts.length - 1].toLowerCase()
   const namePart = parts.slice(0, -1).join('.')
 
@@ -163,7 +161,7 @@ function closePreview() {
             <!-- File info (left side) -->
             <div class="flex items-center gap-2 flex-1 min-w-0">
               <span class="text-sm">{{ getFileTypeIcon(file.file_type) }}</span>
-              <span class="font-medium truncate" :title="getFriendlyFilename(file)">{{ getFriendlyFilename(file) }}</span>
+              <span class="font-medium truncate" :title="getFriendlyFilename(file.filename)">{{ getFriendlyFilename(file.filename) }}</span>
               <span class="text-[9px] text-gray-500">{{ formatFileSize(file.size_bytes) }}</span>
             </div>
 
