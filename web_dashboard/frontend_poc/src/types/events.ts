@@ -22,11 +22,12 @@ export interface AgentUpdatePayload {
 
 export interface FileGeneratedPayload {
   file_id: string;
-  filename: string;
+  filename: string;  // UUID filename (e.g., "72320175ea5448e7a3f5116b95532853.pdf")
   file_type: string;
   language: string;
   size_bytes: number;
-  path?: string;
+  path: string;  // Download path (e.g., "/download/{session_id}/{uuid_filename}")
+  friendly_name: string;  // User-friendly display name (e.g., "research_report_vi.pdf")
 }
 
 export interface ResearchStatusPayload {

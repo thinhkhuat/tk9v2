@@ -4,10 +4,7 @@ import { computed, ref } from 'vue'
 import { api, triggerFileDownload } from '@/services/api'
 import type { FileGeneratedPayload } from '@/types/events'
 import FilePreviewModal from './FilePreviewModal.vue'
-import {
-  getFileTypeIcon,
-  guessFileTypeFromFilename
-} from '@/utils/file-display-utils'
+import { getFileTypeIcon } from '@/utils/file-display-utils'
 import { formatFileSize } from '@/utils/formatters'
 
 const store = useSessionStore()
@@ -16,18 +13,13 @@ const store = useSessionStore()
 const showPreviewModal = ref(false)
 const fileToPreview = ref<FileGeneratedPayload | null>(null)
 
-// Group files by type (backend provides file_type, fallback to guess if missing)
+// Group files by type (backend provides file_type - trust it completely)
 const filesByType = computed(() => {
   const groups: Record<string, FileGeneratedPayload[]> = {}
 
   store.files.forEach(file => {
-    // Backend should provide file_type - use it directly
-    let fileType = file.file_type
-
-    // Fallback: guess from filename only if backend didn't provide it
-    if (!fileType || fileType === 'undefined' || fileType === 'null') {
-      fileType = guessFileTypeFromFilename(file.filename)
-    }
+    // Backend is source of truth - use file_type directly
+    const fileType = file.file_type
 
     if (!groups[fileType]) {
       groups[fileType] = []
@@ -38,41 +30,18 @@ const filesByType = computed(() => {
   return groups
 })
 
-// Get friendly filename for display
-// TODO: Backend should eventually provide this in the WebSocket event
-function getFriendlyFilename(uuidFilename: string): string {
-  if (!uuidFilename || !uuidFilename.includes('.')) return uuidFilename
-
-  const parts = uuidFilename.split('.')
-  const extension = parts[parts.length - 1].toLowerCase()
-  const namePart = parts.slice(0, -1).join('.')
-
-  // Check if it has a language code suffix (e.g., "uuid_vi")
-  if (namePart.includes('_')) {
-    const lastPart = namePart.split('_').pop()
-    if (lastPart && lastPart.length <= 3) {
-      // Translated file
-      return `research_report_${lastPart}.${extension}`
-    }
-  }
-
-  // Original file
-  return `research_report.${extension}`
-}
-
 // Download file handler
 async function downloadFile(file: FileGeneratedPayload) {
   if (!store.sessionId) return
 
   try {
-    // Use UUID filename for download (file.filename is already UUID now)
+    // Use UUID filename for download request
     console.log(`Downloading ${file.filename}...`)
 
     const blob = await api.downloadFile(store.sessionId, file.filename)
 
-    // Save with friendly name for user
-    const friendlyName = getFriendlyFilename(file.filename)
-    triggerFileDownload(blob, friendlyName)
+    // Save with backend-provided friendly name (single source of truth)
+    triggerFileDownload(blob, file.friendly_name)
   } catch (error) {
     console.error('Download failed:', error)
     alert(`Failed to download ${file.filename}`)
@@ -161,7 +130,7 @@ function closePreview() {
             <!-- File info (left side) -->
             <div class="flex items-center gap-2 flex-1 min-w-0">
               <span class="text-sm">{{ getFileTypeIcon(file.file_type) }}</span>
-              <span class="font-medium truncate" :title="getFriendlyFilename(file.filename)">{{ getFriendlyFilename(file.filename) }}</span>
+              <span class="font-medium truncate" :title="file.friendly_name">{{ file.friendly_name }}</span>
               <span class="text-[9px] text-gray-500">{{ formatFileSize(file.size_bytes) }}</span>
             </div>
 

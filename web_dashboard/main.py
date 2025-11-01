@@ -932,7 +932,7 @@ async def start_research_session(session_id: str, subject: str, language: str):
                     # Create file_key to uniquely identify this file version
                     file_key = (parsed_file.original_filename, file.size)
 
-                    # Create and return WebSocket event
+                    # Create and return WebSocket event with pre-computed friendly_name
                     file_event = create_file_generated_event(
                         session_id=session_id,
                         file_id=parsed_file.uuid,  # Use canonical UUID from parsed object
@@ -940,6 +940,7 @@ async def start_research_session(session_id: str, subject: str, language: str):
                         file_type=parsed_file.file_type.value,
                         language=parsed_file.language.value,
                         size_bytes=file.size or 0,
+                        friendly_name=parsed_file.friendly_name,  # Backend is source of truth
                         path=file.url,
                     )
                     return (file_key, file_event)
