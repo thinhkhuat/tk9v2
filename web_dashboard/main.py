@@ -878,19 +878,36 @@ async def start_research_session(session_id: str, subject: str, language: str):
                         if file_key not in sent_files:
                             sent_files.add(file_key)
 
-                            # Extract file metadata
-                            file_extension = (
-                                file.filename.rsplit(".", 1)[-1]
-                                if "." in file.filename
-                                else "unknown"
-                            )
-                            filename_parts = file.filename.rsplit(".", 1)[0].split("_")
+                            # Extract file extension from BOTH filename AND url (defensive)
+                            # Priority: filename extension > url extension > "unknown"
+                            file_extension = None
+
+                            # Try filename first
+                            if file.filename and "." in file.filename:
+                                file_extension = file.filename.rsplit(".", 1)[-1].lower()
+
+                            # Fallback to URL if filename doesn't have extension
+                            if not file_extension and file.url and "." in file.url:
+                                # Extract from URL: /download/session_id/actual_file.pdf → pdf
+                                url_filename = file.url.split("/")[-1]
+                                if "." in url_filename:
+                                    file_extension = url_filename.rsplit(".", 1)[-1].lower()
+
+                            # Final fallback
+                            if not file_extension or file_extension in ["", "undefined", "null"]:
+                                file_extension = "unknown"
+                                logger.warning(f"Could not detect file type for {file.filename}, using 'unknown'")
+
+                            # Extract language from filename
+                            filename_parts = file.filename.rsplit(".", 1)[0].split("_") if file.filename else []
                             lang = (
                                 filename_parts[-1]
                                 if len(filename_parts) > 2 and len(filename_parts[-1]) <= 3
                                 else "en"
                             )
-                            file_id = file.filename.rsplit(".", 1)[0]
+                            file_id = file.filename.rsplit(".", 1)[0] if file.filename else f"file_{file.size}"
+
+                            logger.info(f"📋 File metadata: {file.filename} → type={file_extension}, lang={lang}")
 
                             # Insert into database
                             actual_filename = urllib.parse.unquote(file.url.split('/')[-1])
