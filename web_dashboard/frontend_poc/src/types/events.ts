@@ -27,7 +27,7 @@ export interface FileGeneratedPayload {
   language: string;
   size_bytes: number;
   path: string;  // Download path (e.g., "/download/{session_id}/{uuid_filename}")
-  friendly_name: string;  // User-friendly display name (e.g., "research_report_vi.pdf")
+  friendly_name?: string;  // User-friendly display name - TEMPORARY: Optional for migration
 }
 
 export interface ResearchStatusPayload {

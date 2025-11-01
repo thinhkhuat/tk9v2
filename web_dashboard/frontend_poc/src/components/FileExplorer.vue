@@ -40,8 +40,9 @@ async function downloadFile(file: FileGeneratedPayload) {
 
     const blob = await api.downloadFile(store.sessionId, file.filename)
 
-    // Save with backend-provided friendly name (single source of truth)
-    triggerFileDownload(blob, file.friendly_name)
+    // Save with backend-provided friendly name (with fallback for migration)
+    const downloadName = file.friendly_name || file.filename
+    triggerFileDownload(blob, downloadName)
   } catch (error) {
     console.error('Download failed:', error)
     alert(`Failed to download ${file.filename}`)
@@ -130,8 +131,8 @@ function closePreview() {
             <!-- File info (left side) -->
             <div class="flex items-center gap-2 flex-1 min-w-0">
               <span class="text-sm">{{ getFileTypeIcon(file.file_type) }}</span>
-              <span class="font-medium truncate" :title="file.friendly_name">{{ file.friendly_name }}</span>
-              <span class="text-[9px] text-gray-500">{{ formatFileSize(file.size_bytes) }}</span>
+              <span class="font-medium truncate" :title="file.friendly_name || file.filename">{{ file.friendly_name || file.filename }}</span>
+              <span class="text-[9px] text-gray-500">{{ formatFileSize(file.size_bytes || 0) }}</span>
             </div>
 
             <!-- Actions (right side) -->

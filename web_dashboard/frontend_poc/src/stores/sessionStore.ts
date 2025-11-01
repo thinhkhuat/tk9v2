@@ -6,6 +6,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useToast } from 'vue-toastification'
+import { WS_RECONNECT_DELAY } from '@/config/api'
 import type {
   WebSocketEvent,
   AgentUpdatePayload,
@@ -177,12 +178,12 @@ export const useSessionStore = defineStore('session', () => {
 
       // Auto-reconnect if connection was not closed cleanly
       if (!event.wasClean && sessionId.value) {
-        console.log('🔄 Attempting to reconnect in 3 seconds...')
+        console.log(`🔄 Attempting to reconnect in ${WS_RECONNECT_DELAY / 1000} seconds...`)
         setTimeout(() => {
           if (sessionId.value) {
             connect(sessionId.value)
           }
-        }, 3000)
+        }, WS_RECONNECT_DELAY)
       }
     }
   }
@@ -254,8 +255,46 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   function handleFileGenerated(payload: FileGeneratedPayload) {
+    // MIGRATION: Handle old events that don't have friendly_name
+    // TODO: Remove this after all sessions use new backend
+    if (!payload.friendly_name) {
+      payload.friendly_name = generateFriendlyNameFallback(payload.filename)
+      console.warn(`⚠️ Generated fallback friendly_name for ${payload.filename}`)
+    }
+
+    // MIGRATION: Handle old events that don't have file_type
+    if (!payload.file_type || payload.file_type === 'undefined') {
+      const ext = payload.filename.split('.').pop()?.toLowerCase()
+      payload.file_type = ext || 'unknown'
+      console.warn(`⚠️ Generated fallback file_type for ${payload.filename}: ${payload.file_type}`)
+    }
+
     files.value.push(payload)
     console.log(`📄 File generated: ${payload.filename} (${payload.size_bytes} bytes)`)
+  }
+
+  /**
+   * TEMPORARY: Generate friendly_name for old events
+   * This fallback handles transition period before backend update
+   */
+  function generateFriendlyNameFallback(uuidFilename: string): string {
+    if (!uuidFilename || !uuidFilename.includes('.')) {
+      return uuidFilename || 'unknown.txt'
+    }
+
+    const parts = uuidFilename.split('.')
+    const extension = parts[parts.length - 1].toLowerCase()
+    const namePart = parts.slice(0, -1).join('.')
+
+    // Check if it has a language code suffix (e.g., "uuid_vi")
+    if (namePart.includes('_')) {
+      const lastPart = namePart.split('_').pop()
+      if (lastPart && lastPart.length <= 3) {
+        return `research_report_${lastPart}.${extension}`
+      }
+    }
+
+    return `research_report.${extension}`
   }
 
   function handleResearchStatus(payload: ResearchStatusPayload) {
