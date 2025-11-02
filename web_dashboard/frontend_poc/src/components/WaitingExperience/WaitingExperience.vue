@@ -47,7 +47,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, watch } from 'vue'
 import type { WaitingExperienceProps, ResearchStage, Quote, ResearchError } from './types'
-import { STAGE_SPEEDS, getAdjustedSpeed, shuffleArray } from './types'
+import { getAdjustedSpeed, shuffleArray } from './types'
 import { TOTAL_SHAPES } from './origami-shapes'
 import { TOTAL_PALETTES } from './color-palettes'
 import OrigamiAnimation from './OrigamiAnimation.vue'

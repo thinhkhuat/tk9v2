@@ -363,6 +363,10 @@ export const PaletteCyclingStrategies = {
     const range = ranges[stage]
     if (!range) return 0 // Fallback to first palette
     const [min, max] = range
+
+    // TypeScript needs explicit assurance that min and max exist after guard
+    if (min === undefined || max === undefined) return 0
+
     const currentInRange = currentIndex >= min && currentIndex <= max
 
     if (currentInRange) {

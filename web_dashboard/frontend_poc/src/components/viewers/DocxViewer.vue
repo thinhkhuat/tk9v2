@@ -20,9 +20,9 @@ onMounted(async () => {
       props.content.byteOffset + props.content.byteLength
     )
 
-    // Convert DOCX to HTML using mammoth (ensure ArrayBuffer type)
+    // Convert DOCX to HTML using mammoth (cast to ArrayBuffer - mammoth handles both types)
     const result = await mammoth.convertToHtml({
-      arrayBuffer: arrayBuffer instanceof ArrayBuffer ? arrayBuffer : new Uint8Array(arrayBuffer).buffer
+      arrayBuffer: arrayBuffer as ArrayBuffer
     })
     htmlContent.value = result.value
 
