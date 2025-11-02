@@ -191,11 +191,11 @@ check_directory_structure() {
     fi
     print_success "Frontend package.json found"
 
-    if [[ ! -f "$PROJECT_ROOT/main.py" ]]; then
-        print_error "Project root not found at: $PROJECT_ROOT"
+    if [[ ! -f "$BACKEND_MAIN" ]]; then
+        print_error "Backend main.py not found at: $BACKEND_MAIN"
         return 1
     fi
-    print_success "Project root validated"
+    print_success "Backend main.py validated"
 
     return 0
 }
