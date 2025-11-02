@@ -20,7 +20,7 @@ Example:
     ['http://localhost:5173', ...]
 """
 
-from typing import List
+from typing import List, Union
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     # CORS Configuration
     # ============================================================
 
-    CORS_ORIGINS: List[str] = Field(
+    CORS_ORIGINS: Union[str, List[str]] = Field(
         default=[
             "http://localhost:5173",
             "http://localhost:5174",
@@ -71,7 +71,7 @@ class Settings(BaseSettings):
         description="Allowed CORS origins (comma-separated string or list)",
     )
 
-    @field_validator("CORS_ORIGINS", mode="before")
+    @field_validator("CORS_ORIGINS", mode="after")
     @classmethod
     def parse_cors_origins(cls, v) -> List[str]:
         """
