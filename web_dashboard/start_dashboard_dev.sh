@@ -74,28 +74,28 @@ print_header() {
 }
 
 print_section() {
-    echo -e "\n${BLUE}${BOLD}==> $1${NC}"
-    echo -e "${BLUE}$(printf '─%.0s' {1..65})${NC}"
+    echo -e "\n${BLUE}${BOLD}==> $1${NC}" >&2
+    echo -e "${BLUE}$(printf '─%.0s' {1..65})${NC}" >&2
 }
 
 print_success() {
-    echo -e "${GREEN}✓${NC} $1"
+    echo -e "${GREEN}✓${NC} $1" >&2
 }
 
 print_error() {
-    echo -e "${RED}✗${NC} $1"
+    echo -e "${RED}✗${NC} $1" >&2
 }
 
 print_warning() {
-    echo -e "${YELLOW}⚠${NC} $1"
+    echo -e "${YELLOW}⚠${NC} $1" >&2
 }
 
 print_info() {
-    echo -e "${CYAN}ℹ${NC} $1"
+    echo -e "${CYAN}ℹ${NC} $1" >&2
 }
 
 print_step() {
-    echo -e "${MAGENTA}→${NC} $1"
+    echo -e "${MAGENTA}→${NC} $1" >&2
 }
 
 # ============================================================================
