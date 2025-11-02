@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useSessionStore } from '@/stores/sessionStore'
 import { ref, computed, watch, nextTick } from 'vue'
-import type { WebSocketEvent } from '@/types/events'
 
 const store = useSessionStore()
 

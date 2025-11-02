@@ -15,8 +15,8 @@ import FileIcon from './icons/FileIcon.vue'
 import DownloadIcon from './icons/DownloadIcon.vue'
 import EyeIcon from './icons/EyeIcon.vue'
 
-// Vue 3 Best Practice: Use withDefaults for props
-const props = withDefaults(defineProps<{
+// Vue 3 Best Practice: Use withDefaults for props (unused in script, auto-exposed to template)
+withDefaults(defineProps<{
   files: FileGeneratedPayload[]
   variant?: 'compact' | 'detailed'
   showActions?: boolean

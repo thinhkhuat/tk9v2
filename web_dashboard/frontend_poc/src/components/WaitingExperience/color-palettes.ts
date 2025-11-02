@@ -163,7 +163,7 @@ export const TOTAL_PALETTES = allColorPalettes.length // 20
  */
 export function getColorPalette(index: number): ColorPalette {
   const safeIndex = index % TOTAL_PALETTES // Wrap around if index > 19
-  return allColorPalettes[safeIndex]
+  return allColorPalettes[safeIndex]!
 }
 
 /**
@@ -172,7 +172,7 @@ export function getColorPalette(index: number): ColorPalette {
  */
 export function getRandomColorPalette(): ColorPalette {
   const randomIndex = Math.floor(Math.random() * TOTAL_PALETTES)
-  return allColorPalettes[randomIndex]
+  return allColorPalettes[randomIndex]!
 }
 
 /**
@@ -276,7 +276,7 @@ export function calculateContrastRatio(color1: string, color2: string): number {
         ? normalized / 12.92
         : Math.pow((normalized + 0.055) / 1.055, 2.4)
     })
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
   }
 
   const lum1 = getLuminance(color1)
@@ -329,7 +329,7 @@ export function exportPaletteMetadata() {
  */
 export const PaletteCyclingStrategies = {
   /**
-   * Sequential: Cycle through palettes in order (0 ’ 1 ’ 2 ’ ... ’ 19 ’ 0)
+   * Sequential: Cycle through palettes in order (0 ï¿½ 1 ï¿½ 2 ï¿½ ... ï¿½ 19 ï¿½ 0)
    */
   sequential: (currentIndex: number): number => {
     return (currentIndex + 1) % TOTAL_PALETTES
@@ -360,7 +360,9 @@ export const PaletteCyclingStrategies = {
       3: [10, 14], // Stage 3: Rich colors (research)
       4: [15, 19]  // Stage 4: Bold colors (writing)
     }
-    const [min, max] = ranges[stage]
+    const range = ranges[stage]
+    if (!range) return 0 // Fallback to first palette
+    const [min, max] = range
     const currentInRange = currentIndex >= min && currentIndex <= max
 
     if (currentInRange) {

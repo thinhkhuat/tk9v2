@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { marked } from 'marked'
 import { useToast } from 'vue-toastification'
 
@@ -21,13 +21,13 @@ marked.setOptions({
 })
 
 // Render content based on file type
-const renderedContent = computed(() => {
+const renderedContent = computed<string>(() => {
   console.log('[TextFileViewer] Computing renderedContent, fileType:', props.fileType)
 
   if (props.fileType === 'md') {
-    // Render markdown to HTML
-    const html = marked(props.content)
-    console.log('[TextFileViewer] Rendered markdown HTML length:', html.length)
+    // Render markdown to HTML (marked.parse is sync in v11+)
+    const html = marked.parse(props.content) as string
+    console.log('[TextFileViewer] Rendered markdown HTML length:', typeof html === 'string' ? html.length : 0)
     return html
   } else if (props.fileType === 'json') {
     // Pretty print JSON
@@ -58,11 +58,7 @@ const isMarkdown = computed(() => {
   return result
 })
 
-const isPlainText = computed(() => {
-  const result = props.fileType === 'txt'
-  console.log('[TextFileViewer] isPlainText:', result)
-  return result
-})
+// isPlainText removed - unused in template
 
 // Line numbers for plain text and JSON
 const lines = computed(() => {

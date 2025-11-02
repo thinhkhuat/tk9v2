@@ -1,6 +1,7 @@
 <template>
   <div class="tk9-origami-animation-wrapper">
     <svg
+      v-if="currentShape"
       :viewBox="ORIGAMI_VIEWBOX"
       :width="animationSize"
       :height="animationSize"

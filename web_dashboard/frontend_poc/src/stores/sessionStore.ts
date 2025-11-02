@@ -15,7 +15,6 @@ import type {
   ResearchStatusPayload,
   LogPayload,
   ErrorPayload,
-  AgentStatus,
   ResearchStatus
 } from '@/types/events'
 
@@ -321,7 +320,7 @@ export const useSessionStore = defineStore('session', () => {
     }
 
     const parts = uuidFilename.split('.')
-    const extension = parts[parts.length - 1].toLowerCase()
+    const extension = parts.length > 0 ? parts[parts.length - 1]!.toLowerCase() : 'txt'
     const namePart = parts.slice(0, -1).join('.')
 
     // Check if it has a language code suffix (e.g., "uuid_vi")

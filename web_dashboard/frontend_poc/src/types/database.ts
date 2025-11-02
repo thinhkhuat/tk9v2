@@ -6,21 +6,25 @@
  */
 
 // ============================================================
-// Enums
+// Enums (as const objects for erasableSyntaxOnly compliance)
 // ============================================================
 
-export enum SessionStatus {
-  IN_PROGRESS = 'in_progress',
-  COMPLETED = 'completed',
-  FAILED = 'failed',
-}
+export const SessionStatus = {
+  IN_PROGRESS: 'in_progress',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+} as const
 
-export enum ResearchStage {
-  INITIAL_RESEARCH = '1_initial_research',
-  PLANNING = '2_planning',
-  PARALLEL_RESEARCH = '3_parallel_research',
-  WRITING = '4_writing',
-}
+export type SessionStatus = (typeof SessionStatus)[keyof typeof SessionStatus]
+
+export const ResearchStage = {
+  INITIAL_RESEARCH: '1_initial_research',
+  PLANNING: '2_planning',
+  PARALLEL_RESEARCH: '3_parallel_research',
+  WRITING: '4_writing',
+} as const
+
+export type ResearchStage = (typeof ResearchStage)[keyof typeof ResearchStage]
 
 // ============================================================
 // Database Tables

@@ -1,23 +1,22 @@
 <script setup lang="ts">
 import { useSessionStore } from '@/stores/sessionStore'
-import { computed } from 'vue'
 
 const store = useSessionStore()
 
-// Computed properties for component display
-const progressPercentage = computed(() => `${store.overallProgress}%`)
-const statusColor = computed(() => {
-  switch (store.overallStatus) {
-    case 'running':
-      return 'bg-blue-500'
-    case 'completed':
-      return 'bg-green-500'
-    case 'failed':
-      return 'bg-red-500'
-    default:
-      return 'bg-gray-400'
-  }
-})
+// Computed properties for component display (commented out - unused in template)
+// const progressPercentage = computed(() => `${store.overallProgress}%`)
+// const statusColor = computed(() => {
+//   switch (store.overallStatus) {
+//     case 'running':
+//       return 'bg-blue-500'
+//     case 'completed':
+//       return 'bg-green-500'
+//     case 'failed':
+//       return 'bg-red-500'
+//     default:
+//       return 'bg-gray-400'
+//   }
+// })
 </script>
 
 <template>

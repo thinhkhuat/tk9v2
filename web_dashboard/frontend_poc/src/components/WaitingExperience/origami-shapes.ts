@@ -409,7 +409,7 @@ export const allOrigamiShapes: OrigamiShape[] = [
  * Get shape by index (0-19)
  */
 export function getShapeByIndex(index: number): OrigamiShape {
-  return allOrigamiShapes[index % allOrigamiShapes.length]
+  return allOrigamiShapes[index % allOrigamiShapes.length]!
 }
 
 /**

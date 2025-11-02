@@ -151,7 +151,7 @@ export function detectFileExtension(file_type?: string | null, filename?: string
   // Fallback: Extract extension from filename if file_type is missing/undefined
   if (!ext && filename) {
     const match = filename.match(/\.([^.]+)$/)
-    ext = match ? match[1].toLowerCase() : null
+    ext = match && match[1] ? match[1].toLowerCase() : undefined
   }
 
   if (!ext) return null
@@ -266,10 +266,10 @@ export function extractFilePathFromDownloadUrl(
 
   // Remove /download/ prefix to get session_id/filename
   const pathMatch = downloadPath.match(/^\/download\/(.+)$/)
-  if (pathMatch) {
+  if (pathMatch && pathMatch[1]) {
     return pathMatch[1] // Returns: {session_id}/{filename}
   }
 
   // Fallback to filename if pattern doesn't match
-  return fallbackFilename
+  return fallbackFilename || 'unknown'
 }

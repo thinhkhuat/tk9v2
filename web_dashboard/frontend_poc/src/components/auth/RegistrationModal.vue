@@ -180,8 +180,8 @@ import { useToast } from 'vue-toastification'
 const toast = useToast()
 const authStore = useAuthStore()
 
-// Props
-const props = defineProps<{
+// Props (unused in script, but exposed to template automatically)
+defineProps<{
   show: boolean
 }>()
 

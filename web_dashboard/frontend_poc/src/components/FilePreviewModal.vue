@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, shallowRef, computed, watch, onUnmounted } from 'vue'
 import { onKeyStroke } from '@vueuse/core'
 import type { FileGeneratedPayload } from '@/types/events'
 import { extractFilePathFromDownloadUrl, detectFileExtension, getViewerType } from '@/utils/file-display-utils'

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import hljs from 'highlight.js/lib/core'
 import { useToast } from 'vue-toastification'
 
