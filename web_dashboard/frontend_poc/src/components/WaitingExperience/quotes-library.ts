@@ -442,7 +442,7 @@ export function getQuotesByStage(stage: ResearchStage): Quote[] {
 export function getRandomQuote(stage: ResearchStage): Quote {
   const quotes = getQuotesByStage(stage)
   const randomIndex = Math.floor(Math.random() * quotes.length)
-  return quotes[randomIndex]
+  return quotes[randomIndex]!
 }
 
 /**
@@ -485,7 +485,7 @@ export function isValidQuote(quote: Quote): boolean {
  * @returns Expected number of quotes to display
  */
 export function getExpectedQuoteCount(
-  stage: ResearchStage,
+  _stage: ResearchStage, // Unused - reserved for future stage-specific quote intervals
   durationSeconds: number
 ): number {
   // Quotes rotate every 10 seconds

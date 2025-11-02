@@ -128,10 +128,11 @@ const effectiveAnimationSpeed = computed(() => {
 
 /**
  * Get base speed for current stage (for interval calculations)
+ * Currently unused - reserved for future interval timing features
  */
-const baseStageSpeed = computed(() => {
-  return STAGE_SPEEDS[props.currentStage]
-})
+// const baseStageSpeed = computed(() => {
+//   return STAGE_SPEEDS[props.currentStage]
+// })
 
 // ============================================================================
 // Methods
@@ -151,8 +152,8 @@ function initializeShuffledIndices(): void {
   state.shuffledPaletteIndices = shuffleArray(paletteIndices)
 
   // Start at first shuffled indices
-  state.currentShapeIndex = state.shuffledShapeIndices[0]
-  state.currentPaletteIndex = state.shuffledPaletteIndices[0]
+  state.currentShapeIndex = state.shuffledShapeIndices[0]!
+  state.currentPaletteIndex = state.shuffledPaletteIndices[0]!
 }
 
 /**
@@ -162,7 +163,7 @@ function advanceToNextShape(): void {
   const currentPosition = state.shuffledShapeIndices.indexOf(state.currentShapeIndex)
   const nextPosition = (currentPosition + 1) % state.shuffledShapeIndices.length
 
-  state.currentShapeIndex = state.shuffledShapeIndices[nextPosition]
+  state.currentShapeIndex = state.shuffledShapeIndices[nextPosition]!
 
   // Re-shuffle when reaching end
   if (nextPosition === 0) {
@@ -177,7 +178,7 @@ function advanceToNextPalette(): void {
   const currentPosition = state.shuffledPaletteIndices.indexOf(state.currentPaletteIndex)
   const nextPosition = (currentPosition + 1) % state.shuffledPaletteIndices.length
 
-  state.currentPaletteIndex = state.shuffledPaletteIndices[nextPosition]
+  state.currentPaletteIndex = state.shuffledPaletteIndices[nextPosition]!
 
   // Re-shuffle when reaching end
   if (nextPosition === 0) {

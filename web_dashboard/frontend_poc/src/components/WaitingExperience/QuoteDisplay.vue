@@ -100,7 +100,7 @@ const currentQuote = computed((): Quote => {
   // Use manual index if provided, otherwise use auto-rotating index
   const index = props.quoteIndex ?? currentQuoteIndex.value
   const safeIndex = index % stageQuotes.value.length
-  return stageQuotes.value[safeIndex]
+  return stageQuotes.value[safeIndex]!
 })
 
 // ============================================================================

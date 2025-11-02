@@ -19,6 +19,11 @@ onMounted(async () => {
     authError.value = error instanceof Error ? error.message : 'Authentication failed'
   }
 })
+
+// Reload handler for error state
+const handleReload = () => {
+  window.location.reload()
+}
 </script>
 
 <template>
@@ -44,7 +49,7 @@ onMounted(async () => {
         <h2 class="text-2xl font-bold text-gray-900 mb-2">Authentication Failed</h2>
         <p class="text-gray-600 mb-6">{{ authError }}</p>
         <button
-          @click="() => window.location.reload()"
+          @click="handleReload"
           class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-md font-semibold transition-colors"
         >
           Retry

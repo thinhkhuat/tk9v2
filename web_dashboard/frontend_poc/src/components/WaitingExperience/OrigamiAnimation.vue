@@ -122,7 +122,7 @@ const showDebugInfo = ref(false)
  * @returns Hex color string
  */
 function getColorForFillPosition(fillPosition: 'primary' | 'secondary' | 'accent'): string {
-  return getColorByFillPosition(currentPalette.value, fillPosition)
+  return getColorByFillPosition(currentPalette.value!, fillPosition)
 }
 
 /**
@@ -138,7 +138,7 @@ function getPathAnimationClass(index: number): string {
     'tk9-path-rotate',
     'tk9-path-sway'
   ]
-  return animationTypes[index % animationTypes.length]
+  return animationTypes[index % animationTypes.length]!
 }
 
 /**
