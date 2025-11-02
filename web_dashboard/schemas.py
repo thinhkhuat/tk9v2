@@ -6,7 +6,7 @@ and validation. All WebSocket events must conform to these schemas.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -38,7 +38,9 @@ class FileGeneratedPayload(BaseModel):
     language: str = Field(..., description="Language of the content")
     size_bytes: int = Field(ge=0, description="File size in bytes")
     path: Optional[str] = Field(None, description="Relative path to the file")
-    friendly_name: str = Field(..., description="User-friendly display name (e.g., 'research_report_vi.pdf')")
+    friendly_name: str = Field(
+        ..., description="User-friendly display name (e.g., 'research_report_vi.pdf')"
+    )
 
 
 class ResearchStatusPayload(BaseModel):
@@ -49,9 +51,7 @@ class ResearchStatusPayload(BaseModel):
         ..., description="Overall research status"
     )
     progress: float = Field(ge=0, le=100, description="Overall progress percentage")
-    estimated_completion: Optional[datetime] = Field(
-        None, description="Estimated completion time"
-    )
+    estimated_completion: Optional[datetime] = Field(None, description="Estimated completion time")
     current_stage: Optional[str] = Field(None, description="Current research stage")
     agents_completed: int = Field(ge=0, description="Number of agents completed")
     agents_total: int = Field(ge=0, description="Total number of agents")
@@ -64,9 +64,7 @@ class LogPayload(BaseModel):
         ..., description="Log level"
     )
     message: str = Field(..., description="Log message")
-    source: Optional[str] = Field(
-        None, description="Source of the log (e.g., agent name)"
-    )
+    source: Optional[str] = Field(None, description="Source of the log (e.g., agent name)")
     timestamp: datetime = Field(
         default_factory=datetime.now, description="When the log was created"
     )
@@ -77,12 +75,8 @@ class ErrorPayload(BaseModel):
 
     error_type: str = Field(..., description="Type/category of error")
     message: str = Field(..., description="Error message")
-    details: Optional[Dict[str, Any]] = Field(
-        None, description="Additional error details"
-    )
-    recoverable: bool = Field(
-        default=True, description="Whether the error is recoverable"
-    )
+    details: Optional[Dict[str, Any]] = Field(None, description="Additional error details")
+    recoverable: bool = Field(default=True, description="Whether the error is recoverable")
     stack_trace: Optional[str] = Field(None, description="Stack trace if available")
 
 
@@ -249,8 +243,6 @@ class FilesReadyEvent(BaseModel):
 
 
 # Discriminated Union Type
-from typing import Union
-
 WebSocketEvent = Union[
     AgentUpdateEvent,
     FileGeneratedEvent,

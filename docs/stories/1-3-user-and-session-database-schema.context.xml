@@ -1,0 +1,260 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>3</storyId>
+    <title>User and Session Database Schema</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-01</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/1-3-user-and-session-database-schema.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>system administrator</asA>
+    <iWant>database tables to store user profiles and research sessions</iWant>
+    <soThat>user data persists reliably and supports historical research access</soThat>
+    <tasks>
+- Task 1: Create users table schema (AC: #1)
+  - Define `users` table with id (UUID, PK, default gen_random_uuid())
+  - Add email column (TEXT, UNIQUE, NULLABLE for anonymous users)
+  - Add is_anonymous column (BOOLEAN, NOT NULL, default false)
+  - Add created_at (TIMESTAMPTZ, NOT NULL, default now())
+  - Add updated_at (TIMESTAMPTZ, NOT NULL, default now())
+  - Create trigger for automatic updated_at timestamp updates
+  - Add index on email column for fast lookups
+
+- Task 2: Create research_sessions table schema (AC: #2)
+  - Define `research_sessions` table with id (UUID, PK, default gen_random_uuid())
+  - Add user_id column (UUID, NOT NULL, FK to users.id ON DELETE CASCADE)
+  - Add title column (TEXT, NOT NULL)
+  - Add status column (ENUM: in_progress, completed, failed, NOT NULL, default in_progress)
+  - Add created_at (TIMESTAMPTZ, NOT NULL, default now())
+  - Add updated_at (TIMESTAMPTZ, NOT NULL, default now())
+  - Create trigger for automatic updated_at timestamp updates
+  - Add index on user_id for fast user session lookups
+  - Add index on created_at for chronological sorting
+
+- Task 3: Create draft_files table schema (AC: #3)
+  - Define `draft_files` table with id (UUID, PK, default gen_random_uuid())
+  - Add session_id column (UUID, NOT NULL, FK to research_sessions.id ON DELETE CASCADE)
+  - Add stage column (ENUM: 1_initial_research, 2_planning, 3_parallel_research, 4_writing, NOT NULL)
+  - Add file_path column (TEXT, NOT NULL)
+  - Add detected_at column (TIMESTAMPTZ, NOT NULL, default now())
+  - Add index on session_id for fast session file lookups
+
+- Task 4: Create database migration script (AC: #6)
+  - Create SQL migration file in `web_dashboard/migrations/` directory
+  - Name migration with timestamp prefix: `YYYYMMDDHHMMSS_create_users_sessions_drafts_tables.sql`
+  - Include all table definitions, enums, indexes, and triggers
+  - Add rollback/down migration section for reversibility
+  - Document migration in migration README
+
+- Task 5: Apply migration to Supabase (AC: #6)
+  - Test migration on local Supabase instance first
+  - Verify all tables created successfully
+  - Verify indexes exist: `\di` in psql or Supabase SQL editor
+  - Test trigger functions: insert/update records and verify updated_at changes
+  - Verify foreign key constraints work (try invalid FK inserts)
+  - Apply migration to production Supabase project
+
+- Task 6: Update backend to use database tables (AC: #2, #5)
+  - Update `/api/research` endpoint to INSERT into research_sessions table
+  - Capture session_id, user_id (from JWT), title (from request), status=in_progress
+  - Update session completion logic to UPDATE status=completed/failed
+  - Add error handling for database insert/update failures
+  - Log database operations for debugging
+
+- Task 7: Implement session transfer database logic (Story 1.2 dependency)
+  - Update `/api/auth/transfer-sessions` endpoint in main.py
+  - Replace placeholder with actual UPDATE query
+  - Execute: `UPDATE research_sessions SET user_id = new_user_id WHERE user_id = old_user_id`
+  - Return actual transferred_count from database
+  - Add transaction handling for atomicity
+  - Test session transfer with real data
+
+- Task 8: Create database models and types (AC: All)
+  - Update `web_dashboard/models.py` with User, ResearchSession, DraftFile Pydantic models
+  - Create TypeScript interfaces in frontend: `types/database.ts`
+  - Define SessionStatus enum: in_progress | completed | failed
+  - Define ResearchStage enum: 1_initial_research | 2_planning | 3_parallel_research | 4_writing
+  - Ensure types match database schema exactly
+
+- Task 9: Write tests for database operations (AC: All)
+  - Backend integration tests: test creating research_sessions
+  - Backend integration tests: test updating session status
+  - Backend integration tests: test session transfer with database
+  - Backend integration tests: test cascade deletes (user deletion → sessions deleted)
+  - Backend integration tests: test foreign key constraints
+  - Backend integration tests: test updated_at trigger
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. Create `users` table with columns: id (UUID, PK), email (unique), is_anonymous (boolean), created_at, updated_at
+2. Create `research_sessions` table with columns: id (UUID, PK), user_id (FK to users), title, status (enum: in_progress, completed, failed), created_at, updated_at
+3. Create `draft_files` table with columns: id (UUID, PK), session_id (FK to research_sessions), stage (enum: 1_initial_research, 2_planning, 3_parallel_research, 4_writing), file_path, detected_at
+4. Add indexes on: users.email, research_sessions.user_id, research_sessions.created_at, draft_files.session_id
+5. All tables include audit columns (created_at, updated_at) with automatic timestamp updates
+6. Database migration script created and tested on local Supabase instance
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>Database Schema</section>
+        <snippet>FR001-FR006 define authentication requirements including anonymous sign-in, email registration, JWT session management, and Row-Level Security policies. Database must store user profiles and research sessions with proper foreign key relationships.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture.md</path>
+        <title>Decision Architecture</title>
+        <section>Database Design</section>
+        <snippet>PostgreSQL with Supabase, UUID primary keys, audit timestamps (created_at, updated_at), CASCADE deletes, indexes on frequently queried columns. Use ENUMs for constrained values.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>Epic Breakdown</title>
+        <section>Story 1.3</section>
+        <snippet>Database tables for users, research_sessions, and draft_files with proper relationships. Migration script must be tested on local Supabase before production deployment.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/1-1-supabase-anonymous-authentication-integration.md</path>
+        <title>Story 1.1 (Completed)</title>
+        <section>Learnings</section>
+        <snippet>Supabase client configured, JWT middleware extracts user_id from tokens, HTTP-only cookies for JWT tokens. Auth patterns established with Composition API.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/1-2-email-registration-and-login-flows.md</path>
+        <title>Story 1.2 (Completed)</title>
+        <section>Session Transfer</section>
+        <snippet>Session transfer endpoint exists at POST /api/auth/transfer-sessions with placeholder logic. Story 1.3 will activate by implementing actual database UPDATE. TransferSessionsRequest model exists.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>web_dashboard/models.py</path>
+        <kind>models</kind>
+        <symbol>ResearchRequest, ResearchResponse, TransferSessionsRequest</symbol>
+        <lines>1-68</lines>
+        <reason>Existing Pydantic models for API requests/responses. Need to add User, ResearchSession, DraftFile models for database ORM.</reason>
+      </artifact>
+      <artifact>
+        <path>web_dashboard/schemas.py</path>
+        <kind>schemas</kind>
+        <symbol>WebSocketEvent, AgentUpdateEvent, FileGeneratedEvent</symbol>
+        <lines>1-340</lines>
+        <reason>Existing event schemas for WebSocket. Reference pattern for creating database response schemas.</reason>
+      </artifact>
+      <artifact>
+        <path>web_dashboard/main.py</path>
+        <kind>api</kind>
+        <symbol>/api/research, /api/auth/transfer-sessions</symbol>
+        <lines>100-297</lines>
+        <reason>POST /api/research endpoint needs to INSERT into research_sessions table. Transfer endpoint needs real UPDATE query replacing placeholder.</reason>
+      </artifact>
+      <artifact>
+        <path>web_dashboard/middleware/auth_middleware.py</path>
+        <kind>middleware</kind>
+        <symbol>verify_jwt_middleware</symbol>
+        <lines>all</lines>
+        <reason>JWT middleware extracts user_id from tokens - use this user_id for database foreign key relationships.</reason>
+      </artifact>
+      <artifact>
+        <path>web_dashboard/frontend_poc/src/stores/authStore.ts</path>
+        <kind>store</kind>
+        <symbol>useAuthStore, transferAnonymousSessions</symbol>
+        <lines>337-365</lines>
+        <reason>Frontend auth store with transferAnonymousSessions() method ready to use real transferred_count from database.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <python>
+        <package name="fastapi" version="0.104.1"/>
+        <package name="pydantic" version="2.5.0"/>
+        <package name="pyjwt" version="2.10.1" extras="crypto"/>
+        <package name="uvicorn" version="0.24.0"/>
+        <package name="supabase-py" version="required" note="Need to add for database operations"/>
+      </python>
+      <node>
+        <package name="@supabase/supabase-js" version="^2.78.0"/>
+        <package name="vue" version="^3.5.22"/>
+        <package name="pinia" version="^3.0.3"/>
+        <package name="typescript" version="~5.9.3"/>
+      </node>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Use UUIDs for all primary keys (gen_random_uuid())</constraint>
+    <constraint>All tables must include audit timestamps (created_at, updated_at)</constraint>
+    <constraint>Foreign keys must use ON DELETE CASCADE for automatic cleanup</constraint>
+    <constraint>Create indexes on frequently queried columns (user_id, created_at, email)</constraint>
+    <constraint>Use PostgreSQL ENUMs for status and stage columns to prevent typos</constraint>
+    <constraint>Migration script must be reversible with rollback/down section</constraint>
+    <constraint>Test migration on local Supabase instance before production</constraint>
+    <constraint>Maintain existing Pydantic model patterns for consistency</constraint>
+    <constraint>Follow existing naming conventions: PascalCase for models, snake_case for database columns</constraint>
+    <constraint>Database operations must use supabase-py client library</constraint>
+    <constraint>All database writes must include error handling and logging</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>POST /api/research</name>
+      <kind>REST endpoint</kind>
+      <signature>async def submit_research(request: ResearchRequest) -> ResearchResponse</signature>
+      <path>web_dashboard/main.py:100-116</path>
+      <note>Needs INSERT into research_sessions table with session_id, user_id, title, status=in_progress</note>
+    </interface>
+    <interface>
+      <name>POST /api/auth/transfer-sessions</name>
+      <kind>REST endpoint</kind>
+      <signature>async def transfer_sessions(request_data: TransferSessionsRequest, req: Request)</signature>
+      <path>web_dashboard/main.py:250-297</path>
+      <note>Placeholder logic exists. Replace with: UPDATE research_sessions SET user_id = new_user_id WHERE user_id = old_user_id</note>
+    </interface>
+    <interface>
+      <name>update_updated_at_column()</name>
+      <kind>PostgreSQL Trigger Function</kind>
+      <signature>CREATE OR REPLACE FUNCTION update_updated_at_column() RETURNS TRIGGER</signature>
+      <path>Story 1.3 - New migration</path>
+      <note>Automatically updates updated_at column before UPDATE on users and research_sessions tables</note>
+    </interface>
+    <interface>
+      <name>User (Pydantic Model)</name>
+      <kind>Database Model</kind>
+      <signature>class User(BaseModel): id, email, is_anonymous, created_at, updated_at</signature>
+      <path>web_dashboard/models.py - To be added</path>
+      <note>Maps to users table schema</note>
+    </interface>
+    <interface>
+      <name>ResearchSession (Pydantic Model)</name>
+      <kind>Database Model</kind>
+      <signature>class ResearchSession(BaseModel): id, user_id, title, status, created_at, updated_at</signature>
+      <path>web_dashboard/models.py - To be added</path>
+      <note>Maps to research_sessions table schema with SessionStatus enum</note>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      pytest for backend integration tests. Test database operations with real Supabase connection (test instance). Verify schema constraints, indexes, triggers, and cascade deletes. Use fixtures for test data setup/teardown. Follow existing test patterns in web_dashboard/tests/.
+    </standards>
+    <locations>
+      web_dashboard/tests/integration/test_database_operations.py (new file)
+      web_dashboard/tests/test_auth_endpoints.py (existing - extend for session transfer)
+    </locations>
+    <ideas>
+      <test ac="1">Test users table: INSERT user, verify columns exist, test email UNIQUE constraint</test>
+      <test ac="2">Test research_sessions table: INSERT session with FK to users, verify status enum works</test>
+      <test ac="3">Test draft_files table: INSERT file with FK to research_sessions, verify stage enum</test>
+      <test ac="4">Test indexes: Run EXPLAIN on queries, verify index scans not sequential scans</test>
+      <test ac="5">Test updated_at trigger: UPDATE record, verify timestamp changes automatically</test>
+      <test ac="6">Test migration: Run migration script, verify success, test rollback functionality</test>
+      <test ac="all">Test cascade delete: DELETE user, verify all related sessions and files deleted</test>
+      <test ac="all">Test FK constraints: Try INSERT with invalid user_id, expect foreign key violation</test>
+      <test ac="2,5">Test session transfer: UPDATE user_id on research_sessions, verify transferred_count matches</test>
+    </ideas>
+  </tests>
+</story-context>

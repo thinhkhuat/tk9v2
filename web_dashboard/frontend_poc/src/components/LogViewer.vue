@@ -80,69 +80,62 @@ function formatTimestamp(timestamp: string) {
 function clearLogs() {
   store.events.splice(0, store.events.length)
 }
+
+// Scroll to bottom manually
+async function scrollToBottom() {
+  if (logContainer.value) {
+    await nextTick()
+    logContainer.value.scrollTop = logContainer.value.scrollHeight
+  }
+}
 </script>
 
 <template>
-  <div class="log-viewer">
-    <div class="header flex justify-between items-center mb-4">
-      <h2 class="text-2xl font-bold">Event Stream</h2>
-      <div class="controls flex gap-2">
+  <div
+    class="log-viewer bg-white rounded shadow p-3 h-[500px] flex flex-col transition-shadow duration-500"
+    :class="{
+      'logs-running-glow': store.isResearchRunning && filteredLogs.length > 0,
+      'logs-completed-glow': store.totalFilesGenerated > 0 && !store.isResearchRunning
+    }"
+  >
+    <div class="header flex justify-between items-center mb-2">
+      <h2 class="text-sm font-bold">Logs</h2>
+      <div class="controls flex gap-1">
         <!-- Auto-scroll toggle -->
-        <label class="flex items-center gap-2 text-sm">
-          <input v-model="autoScroll" type="checkbox" class="rounded" />
-          <span>Auto-scroll</span>
+        <label class="flex items-center gap-1 text-xs">
+          <input v-model="autoScroll" type="checkbox" class="rounded w-3 h-3" />
+          <span>Auto</span>
         </label>
 
         <!-- Clear button -->
         <button
           @click="clearLogs"
-          class="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm"
+          class="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded text-xs"
         >
           Clear
         </button>
       </div>
     </div>
 
-    <!-- Filters -->
-    <div class="filters flex gap-4 mb-4">
+    <!-- Compact Filters -->
+    <div class="filters flex gap-2 mb-2">
       <!-- Log level filter -->
-      <div class="filter-group">
-        <label class="text-sm font-medium mr-2">Level:</label>
-        <select
-          v-model="selectedLogLevel"
-          class="border rounded px-2 py-1 text-sm"
-        >
-          <option value="all">All</option>
-          <option value="debug">Debug</option>
-          <option value="info">Info</option>
-          <option value="warning">Warning</option>
-          <option value="error">Error</option>
-          <option value="critical">Critical</option>
-        </select>
-      </div>
-
-      <!-- Search -->
-      <div class="filter-group flex-1">
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Search logs..."
-          class="w-full border rounded px-3 py-1 text-sm"
-        />
-      </div>
-    </div>
-
-    <!-- Log stats -->
-    <div class="log-stats flex gap-4 mb-4 text-sm">
-      <span class="text-gray-600">Total Events: {{ store.events.length }}</span>
-      <span class="text-gray-600">Showing: {{ filteredLogs.length }}</span>
-      <span class="text-gray-600">Session: {{ store.sessionId || 'None' }}</span>
+      <select
+        v-model="selectedLogLevel"
+        class="border rounded px-1.5 py-0.5 text-xs flex-1"
+      >
+        <option value="all">All Levels</option>
+        <option value="debug">Debug</option>
+        <option value="info">Info</option>
+        <option value="warning">Warning</option>
+        <option value="error">Error</option>
+      </select>
     </div>
 
     <!-- Log container -->
     <div
       ref="logContainer"
-      class="log-container bg-gray-900 text-gray-100 rounded-lg p-4 h-96 overflow-y-auto font-mono text-sm"
+      class="log-container bg-gray-900 text-gray-100 rounded p-2 flex-1 overflow-y-auto font-mono text-[10px]"
     >
       <div v-if="filteredLogs.length === 0" class="text-center text-gray-500 py-8">
         No log entries to display
@@ -181,6 +174,19 @@ function clearLogs() {
           ● {{ store.wsStatus.toUpperCase() }}
         </span>
       </div>
+
+      <!-- Scroll to bottom button -->
+      <button
+        @click="scrollToBottom"
+        class="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1"
+        title="Jump to the latest log entries"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <polyline points="19 12 12 19 5 12"></polyline>
+        </svg>
+        Bottom
+      </button>
     </div>
   </div>
 </template>
@@ -209,7 +215,17 @@ function clearLogs() {
 }
 
 .log-entry {
-  font-size: 0.875rem;
-  line-height: 1.5;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+/* Subtle orange/yellow glow during research */
+.logs-running-glow {
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.3), 0 0 40px rgba(251, 191, 36, 0.15);
+}
+
+/* Subtle green glow when research completed */
+.logs-completed-glow {
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.3), 0 0 40px rgba(34, 197, 94, 0.15);
 }
 </style>

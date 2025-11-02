@@ -3,29 +3,26 @@ End-to-end tests for the complete research and translation workflow.
 Tests the entire system integration from query to final translated output.
 """
 
-import pytest
 import asyncio
 import os
-import tempfile
-import json
-import time
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from typing import Dict, Any, List
-
 import sys
-sys.path.append('/Users/thinhkhuat/DEV--local/multi-agent-deep-research/deep-research-mcp-og')
+import tempfile
+from unittest.mock import patch
+
+import pytest
+
+sys.path.append("/Users/thinhkhuat/DEV--local/multi-agent-deep-research/deep-research-mcp-og")
 
 from multi_agents.agents.orchestrator import ChiefEditorAgent
-from multi_agents.main import run_research_task
 
 
 class TestEndToEndWorkflow:
     """End-to-end workflow tests"""
-    
+
     def setup_method(self):
         """Setup test environment"""
         self.temp_dir = tempfile.mkdtemp()
-        
+
         # Comprehensive test task
         self.task = {
             "query": "The impact of artificial intelligence on modern healthcare systems",
@@ -36,158 +33,213 @@ class TestEndToEndWorkflow:
             "guidelines": [
                 "Focus on recent developments (2020-2024)",
                 "Include both benefits and challenges",
-                "Cite reliable sources"
+                "Cite reliable sources",
             ],
             "tone": "analytical",
             "include_human_feedback": False,
-            "follow_guidelines": True
+            "follow_guidelines": True,
         }
-        
+
     def teardown_method(self):
         """Cleanup test environment"""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
-        
+
     @pytest.mark.asyncio
     async def test_complete_workflow_with_translation(self):
         """Test the complete workflow from query to translated files"""
-        
+
         # Mock all external dependencies to avoid real API calls
-        with patch('multi_agents.agents.researcher.ResearchAgent.run_initial_research') as mock_browser:
-            with patch('multi_agents.agents.editor.EditorAgent.plan_research') as mock_planner:
-                with patch('multi_agents.agents.editor.EditorAgent.run_parallel_research') as mock_researcher:
-                    with patch('multi_agents.agents.writer.WriterAgent.run') as mock_writer:
-                        with patch('multi_agents.agents.publisher.PublisherAgent.run') as mock_publisher:
-                            with patch('multi_agents.agents.translator.TranslatorAgent.run') as mock_translator:
-                                
+        with patch(
+            "multi_agents.agents.researcher.ResearchAgent.run_initial_research"
+        ) as mock_browser:
+            with patch("multi_agents.agents.editor.EditorAgent.plan_research") as mock_planner:
+                with patch(
+                    "multi_agents.agents.editor.EditorAgent.run_parallel_research"
+                ) as mock_researcher:
+                    with patch("multi_agents.agents.writer.WriterAgent.run") as mock_writer:
+                        with patch(
+                            "multi_agents.agents.publisher.PublisherAgent.run"
+                        ) as mock_publisher:
+                            with patch(
+                                "multi_agents.agents.translator.TranslatorAgent.run"
+                            ) as mock_translator:
+
                                 # Setup mock responses that simulate real workflow
                                 await self._setup_workflow_mocks(
-                                    mock_browser, mock_planner, mock_researcher,
-                                    mock_writer, mock_publisher, mock_translator
+                                    mock_browser,
+                                    mock_planner,
+                                    mock_researcher,
+                                    mock_writer,
+                                    mock_publisher,
+                                    mock_translator,
                                 )
-                                
+
                                 # Create orchestrator with file output
-                                orchestrator = ChiefEditorAgent(
-                                    task=self.task,
-                                    write_to_files=True
-                                )
-                                
+                                orchestrator = ChiefEditorAgent(task=self.task, write_to_files=True)
+
                                 # Override output directory
                                 orchestrator.output_dir = self.temp_dir
-                                
+
                                 # Run complete workflow
                                 result = await orchestrator.run_research_task("e2e_test")
-                                
+
                                 # Verify final result structure
                                 assert result is not None
                                 assert "task" in result
                                 assert "workflow_complete" in result
                                 assert result["workflow_complete"] is True
-                                
+
                                 # Verify translation was executed for Vietnamese
                                 mock_translator.assert_called_once()
-                                
+
     @pytest.mark.asyncio
     async def test_english_workflow_no_translation(self):
         """Test workflow with English language (should skip translation)"""
-        
+
         english_task = self.task.copy()
         english_task["language"] = "en"
-        
-        with patch('multi_agents.agents.researcher.ResearchAgent.run_initial_research') as mock_browser:
-            with patch('multi_agents.agents.editor.EditorAgent.plan_research') as mock_planner:
-                with patch('multi_agents.agents.editor.EditorAgent.run_parallel_research') as mock_researcher:
-                    with patch('multi_agents.agents.writer.WriterAgent.run') as mock_writer:
-                        with patch('multi_agents.agents.publisher.PublisherAgent.run') as mock_publisher:
-                            with patch('multi_agents.agents.translator.TranslatorAgent.run') as mock_translator:
-                                
+
+        with patch(
+            "multi_agents.agents.researcher.ResearchAgent.run_initial_research"
+        ) as mock_browser:
+            with patch("multi_agents.agents.editor.EditorAgent.plan_research") as mock_planner:
+                with patch(
+                    "multi_agents.agents.editor.EditorAgent.run_parallel_research"
+                ) as mock_researcher:
+                    with patch("multi_agents.agents.writer.WriterAgent.run") as mock_writer:
+                        with patch(
+                            "multi_agents.agents.publisher.PublisherAgent.run"
+                        ) as mock_publisher:
+                            with patch(
+                                "multi_agents.agents.translator.TranslatorAgent.run"
+                            ) as mock_translator:
+
                                 await self._setup_workflow_mocks(
-                                    mock_browser, mock_planner, mock_researcher,
-                                    mock_writer, mock_publisher, mock_translator
+                                    mock_browser,
+                                    mock_planner,
+                                    mock_researcher,
+                                    mock_writer,
+                                    mock_publisher,
+                                    mock_translator,
                                 )
-                                
+
                                 orchestrator = ChiefEditorAgent(
-                                    task=english_task,
-                                    write_to_files=True
+                                    task=english_task, write_to_files=True
                                 )
                                 orchestrator.output_dir = self.temp_dir
-                                
+
                                 result = await orchestrator.run_research_task("english_test")
-                                
+
                                 # Verify workflow completed without translation
                                 assert result is not None
                                 assert "task" in result
-                                
+
                                 # Translation should not have been called for English
                                 mock_translator.assert_not_called()
-                                
+
     @pytest.mark.asyncio
     async def test_error_handling_workflow(self):
         """Test workflow error handling and recovery"""
-        
-        with patch('multi_agents.agents.researcher.ResearchAgent.run_initial_research') as mock_browser:
-            with patch('multi_agents.agents.editor.EditorAgent.plan_research') as mock_planner:
-                with patch('multi_agents.agents.editor.EditorAgent.run_parallel_research') as mock_researcher:
-                    with patch('multi_agents.agents.writer.WriterAgent.run') as mock_writer:
-                        with patch('multi_agents.agents.publisher.PublisherAgent.run') as mock_publisher:
-                            with patch('multi_agents.agents.translator.TranslatorAgent.run') as mock_translator:
-                                
+
+        with patch(
+            "multi_agents.agents.researcher.ResearchAgent.run_initial_research"
+        ) as mock_browser:
+            with patch("multi_agents.agents.editor.EditorAgent.plan_research") as mock_planner:
+                with patch(
+                    "multi_agents.agents.editor.EditorAgent.run_parallel_research"
+                ) as mock_researcher:
+                    with patch("multi_agents.agents.writer.WriterAgent.run") as mock_writer:
+                        with patch(
+                            "multi_agents.agents.publisher.PublisherAgent.run"
+                        ) as mock_publisher:
+                            with patch(
+                                "multi_agents.agents.translator.TranslatorAgent.run"
+                            ) as mock_translator:
+
                                 # Setup mocks with one failure
                                 await self._setup_workflow_mocks(
-                                    mock_browser, mock_planner, mock_researcher,
-                                    mock_writer, mock_publisher, mock_translator
+                                    mock_browser,
+                                    mock_planner,
+                                    mock_researcher,
+                                    mock_writer,
+                                    mock_publisher,
+                                    mock_translator,
                                 )
-                                
+
                                 # Make translator fail
                                 mock_translator.return_value = {
-                                    "translation_result": {"status": "error", "message": "Translation service unavailable"},
-                                    "workflow_complete": True
+                                    "translation_result": {
+                                        "status": "error",
+                                        "message": "Translation service unavailable",
+                                    },
+                                    "workflow_complete": True,
                                 }
-                                
-                                orchestrator = ChiefEditorAgent(
-                                    task=self.task,
-                                    write_to_files=True
-                                )
+
+                                orchestrator = ChiefEditorAgent(task=self.task, write_to_files=True)
                                 orchestrator.output_dir = self.temp_dir
-                                
+
                                 # Should still complete workflow even with translation error
                                 result = await orchestrator.run_research_task("error_test")
-                                
+
                                 assert result is not None
                                 assert result["workflow_complete"] is True
                                 assert result["translation_result"]["status"] == "error"
-                                
-    async def _setup_workflow_mocks(self, mock_browser, mock_planner, mock_researcher, 
-                                  mock_writer, mock_publisher, mock_translator):
+
+    async def _setup_workflow_mocks(
+        self,
+        mock_browser,
+        mock_planner,
+        mock_researcher,
+        mock_writer,
+        mock_publisher,
+        mock_translator,
+    ):
         """Setup comprehensive mocks for workflow agents"""
-        
+
         # Mock browser agent (initial research)
         mock_browser.return_value = {
             "task": self.task,
             "initial_research": {
                 "query": self.task["query"],
                 "sources": [
-                    {"url": "https://example.com/ai-healthcare-1", "title": "AI in Healthcare: Recent Advances"},
-                    {"url": "https://example.com/ai-healthcare-2", "title": "Healthcare AI Challenges"}
+                    {
+                        "url": "https://example.com/ai-healthcare-1",
+                        "title": "AI in Healthcare: Recent Advances",
+                    },
+                    {
+                        "url": "https://example.com/ai-healthcare-2",
+                        "title": "Healthcare AI Challenges",
+                    },
                 ],
-                "summary": "Initial research on AI in healthcare reveals significant developments and challenges."
-            }
+                "summary": "Initial research on AI in healthcare reveals significant developments and challenges.",
+            },
         }
-        
+
         # Mock planner agent
         mock_planner.return_value = {
             "task": self.task,
             "initial_research": mock_browser.return_value["initial_research"],
             "research_plan": {
                 "sections": [
-                    {"title": "Current AI Applications in Healthcare", "query": "AI applications healthcare 2024"},
-                    {"title": "Benefits and Improvements", "query": "AI benefits healthcare efficiency"},
-                    {"title": "Challenges and Limitations", "query": "AI healthcare challenges limitations"}
+                    {
+                        "title": "Current AI Applications in Healthcare",
+                        "query": "AI applications healthcare 2024",
+                    },
+                    {
+                        "title": "Benefits and Improvements",
+                        "query": "AI benefits healthcare efficiency",
+                    },
+                    {
+                        "title": "Challenges and Limitations",
+                        "query": "AI healthcare challenges limitations",
+                    },
                 ]
             },
-            "human_feedback": None
+            "human_feedback": None,
         }
-        
+
         # Mock parallel researcher
         mock_researcher.return_value = {
             "task": self.task,
@@ -197,22 +249,22 @@ class TestEndToEndWorkflow:
                 {
                     "title": "Current AI Applications in Healthcare",
                     "content": "AI is currently being used in diagnostics, treatment planning, and patient monitoring...",
-                    "sources": ["source1", "source2"]
+                    "sources": ["source1", "source2"],
                 },
                 {
-                    "title": "Benefits and Improvements", 
+                    "title": "Benefits and Improvements",
                     "content": "AI has shown significant improvements in diagnostic accuracy and efficiency...",
-                    "sources": ["source3", "source4"]
+                    "sources": ["source3", "source4"],
                 },
                 {
                     "title": "Challenges and Limitations",
                     "content": "Despite advances, AI faces challenges including data privacy and algorithmic bias...",
-                    "sources": ["source5", "source6"]
-                }
+                    "sources": ["source5", "source6"],
+                },
             ],
-            "human_feedback": None
+            "human_feedback": None,
         }
-        
+
         # Mock writer agent
         mock_writer.return_value = {
             "task": self.task,
@@ -236,31 +288,37 @@ Despite advances, AI faces challenges including data privacy and algorithmic bia
 
 ## Conclusion
 The integration of AI in healthcare presents both tremendous opportunities and significant challenges.""",
-                "structure": ["Introduction", "Current AI Applications", "Benefits and Improvements", "Challenges and Limitations", "Conclusion"],
+                "structure": [
+                    "Introduction",
+                    "Current AI Applications",
+                    "Benefits and Improvements",
+                    "Challenges and Limitations",
+                    "Conclusion",
+                ],
                 "word_count": 850,
-                "sources_cited": 6
-            }
+                "sources_cited": 6,
+            },
         }
-        
+
         # Mock publisher agent
         md_path = os.path.join(self.temp_dir, "ai_healthcare_report.md")
         pdf_path = os.path.join(self.temp_dir, "ai_healthcare_report.pdf")
         docx_path = os.path.join(self.temp_dir, "ai_healthcare_report.docx")
-        
+
         # Create mock files
-        with open(md_path, 'w', encoding='utf-8') as f:
+        with open(md_path, "w", encoding="utf-8") as f:
             f.write(mock_writer.return_value["draft"]["content"])
-        with open(pdf_path, 'wb') as f:
+        with open(pdf_path, "wb") as f:
             f.write(b"Mock PDF content")
-        with open(docx_path, 'wb') as f:
+        with open(docx_path, "wb") as f:
             f.write(b"Mock DOCX content")
-            
+
         mock_publisher.return_value = {
             **mock_writer.return_value,
             "published_files": [md_path, pdf_path, docx_path],
-            "publishing_status": "success"
+            "publishing_status": "success",
         }
-        
+
         # Mock translator agent
         mock_translator.return_value = {
             **mock_publisher.return_value,
@@ -272,42 +330,43 @@ The integration of AI in healthcare presents both tremendous opportunities and s
                 "translated_files": [
                     os.path.join(self.temp_dir, "ai_healthcare_report_vi.md"),
                     os.path.join(self.temp_dir, "ai_healthcare_report_vi.pdf"),
-                    os.path.join(self.temp_dir, "ai_healthcare_report_vi.docx")
-                ]
+                    os.path.join(self.temp_dir, "ai_healthcare_report_vi.docx"),
+                ],
             },
-            "workflow_complete": True
+            "workflow_complete": True,
         }
 
 
 class TestRealWorldScenarios:
     """Test realistic scenarios that might occur in production"""
-    
+
     def setup_method(self):
         """Setup test environment"""
         self.temp_dir = tempfile.mkdtemp()
-        
+
     def teardown_method(self):
         """Cleanup test environment"""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
-        
+
     @pytest.mark.asyncio
     async def test_large_content_translation(self):
         """Test translation of large content (realistic report size)"""
-        
+
         # Create a large realistic report
         large_content = self._generate_large_report_content()
-        
+
         translator = TranslatorAgent(output_dir=self.temp_dir)
-        
+
         # Create mock markdown file
         md_path = os.path.join(self.temp_dir, "large_report.md")
-        with open(md_path, 'w', encoding='utf-8') as f:
+        with open(md_path, "w", encoding="utf-8") as f:
             f.write(large_content)
-            
+
         # Mock translation endpoint responses
-        with patch.object(translator, '_translate_single_endpoint') as mock_endpoint:
-            
+        with patch.object(translator, "_translate_single_endpoint") as mock_endpoint:
+
             async def mock_translation_response(endpoint, payload):
                 # Simulate realistic translation (slightly shorter than original)
                 translated_content = f"# Báo Cáo Lớn\n\n{payload['transcript'][:1000]}... (đã dịch)"
@@ -315,76 +374,73 @@ class TestRealWorldScenarios:
                     "success": True,
                     "text": translated_content,
                     "length": len(translated_content),
-                    "endpoint_name": endpoint["name"]
+                    "endpoint_name": endpoint["name"],
                 }
-            
+
             mock_endpoint.side_effect = mock_translation_response
-            
+
             # Test translation
             result = await translator._translate_chunk_concurrent(
-                large_content[:2000],  # Limit for test performance
-                "Vietnamese",
-                "vi",
-                {}
+                large_content[:2000], "Vietnamese", "vi", {}  # Limit for test performance
             )
-            
+
             assert result is not None
             assert "Báo Cáo Lớn" in result
-            
+
     @pytest.mark.asyncio
     async def test_multiple_language_workflows(self):
         """Test workflows for different target languages"""
-        
+
         languages_to_test = [
             ("vi", "Vietnamese"),
             ("fr", "French"),
             ("de", "German"),
             ("ja", "Japanese"),
-            ("en", "English")  # Should skip translation
+            ("en", "English"),  # Should skip translation
         ]
-        
+
         for lang_code, lang_name in languages_to_test:
             task = {
                 "query": f"Test query for {lang_name}",
                 "language": lang_code,
                 "max_sections": 2,
-                "publish_formats": ["md"]
+                "publish_formats": ["md"],
             }
-            
+
             orchestrator = ChiefEditorAgent(task=task)
-            
+
             # Test translation decision
             research_state = {"task": task}
             should_translate = orchestrator._should_translate(research_state)
-            
+
             if lang_code == "en":
                 assert should_translate == "skip"
             else:
                 assert should_translate == "translate"
-                
+
     @pytest.mark.asyncio
     async def test_network_resilience(self):
         """Test system resilience to network issues during translation"""
-        
+
         translator = TranslatorAgent()
-        
+
         # Simulate various network conditions
         network_scenarios = [
             # All endpoints timeout
             lambda: asyncio.TimeoutError("Network timeout"),
             # Primary fails, backup succeeds
-            lambda: {"success": False} if hasattr(lambda: None, 'call_count') and lambda.call_count == 0 else {
+            lambda: {
                 "success": True,
                 "text": "Backup translation",
                 "length": 100,
-                "endpoint_name": "Backup"
+                "endpoint_name": "Backup",
             },
             # Intermittent failures
-            lambda: {"success": True, "text": "Success after retry", "length": 100} 
+            lambda: {"success": True, "text": "Success after retry", "length": 100},
         ]
-        
+
         for scenario in network_scenarios:
-            with patch.object(translator, '_translate_single_endpoint') as mock_endpoint:
+            with patch.object(translator, "_translate_single_endpoint") as mock_endpoint:
                 if callable(scenario):
                     if "timeout" in str(scenario()):
                         mock_endpoint.side_effect = scenario()
@@ -392,25 +448,22 @@ class TestRealWorldScenarios:
                         mock_endpoint.return_value = scenario()
                 else:
                     mock_endpoint.return_value = scenario
-                
+
                 try:
                     result = await translator._translate_chunk_concurrent(
-                        "Test content for network resilience",
-                        "Vietnamese",
-                        "vi",
-                        {}
+                        "Test content for network resilience", "Vietnamese", "vi", {}
                     )
                     # Should handle gracefully regardless of network issues
                     # Either succeed with backup or return None
                 except Exception as e:
                     # Should not raise unhandled exceptions
                     pytest.fail(f"Unhandled exception during network failure: {e}")
-                    
+
     def test_file_system_edge_cases(self):
         """Test handling of file system edge cases"""
-        
+
         translator = TranslatorAgent()
-        
+
         # Test various file system scenarios
         test_cases = [
             # Non-existent directory
@@ -419,9 +472,9 @@ class TestRealWorldScenarios:
             # Files with special characters
             (os.path.join(self.temp_dir, "report_with_特殊字符.md"), "Should handle unicode"),
             # Very long file names (within OS limits)
-            (os.path.join(self.temp_dir, "a" * 200 + ".md"), "Should handle long names")
+            (os.path.join(self.temp_dir, "a" * 200 + ".md"), "Should handle long names"),
         ]
-        
+
         for file_path, description in test_cases:
             if "non/existent" in file_path:
                 # Test non-existent file handling
@@ -430,12 +483,12 @@ class TestRealWorldScenarios:
             else:
                 # Create test file and verify handling
                 os.makedirs(os.path.dirname(file_path), exist_ok=True)
-                with open(file_path, 'w', encoding='utf-8') as f:
+                with open(file_path, "w", encoding="utf-8") as f:
                     f.write("Test content")
-                
+
                 format_files = translator._find_all_format_files(file_path)
                 assert isinstance(format_files, dict)
-                
+
     def _generate_large_report_content(self) -> str:
         """Generate a large realistic report for testing"""
         content = """# Comprehensive Analysis of Global Climate Change Impacts

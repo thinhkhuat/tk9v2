@@ -2,16 +2,18 @@ import asyncio
 import json
 import logging
 import re
-from typing import Dict, Set
-from fastapi import WebSocket, WebSocketDisconnect
 from datetime import datetime
-from models import LogMessage
+from pathlib import Path
+from typing import Dict, Set
+
+from fastapi import WebSocket, WebSocketDisconnect
+
 from schemas import (
+    WebSocketEvent,
     create_agent_update_event,
-    create_research_status_event,
-    create_log_event,
     create_error_event,
-    WebSocketEvent
+    create_log_event,
+    create_research_status_event,
 )
 
 logger = logging.getLogger(__name__)
@@ -19,35 +21,47 @@ logger = logging.getLogger(__name__)
 # Agent pipeline order and name mapping
 # NOTE: Reviewer and Reviser are DISABLED in backend workflow for performance optimization
 # Full workflow: Browser → Editor → Researcher → Writer → Publisher → Translator → Orchestrator
-AGENT_PIPELINE = ['Browser', 'Editor', 'Researcher', 'Writer', 'Publisher', 'Translator', 'Orchestrator']
+AGENT_PIPELINE = [
+    "Browser",
+    "Editor",
+    "Researcher",
+    "Writer",
+    "Publisher",
+    "Translator",
+    "Orchestrator",
+]
 AGENT_NAME_MAP = {
-    'BROWSER': 'Browser',
-    'EDITOR': 'Editor',
-    'RESEARCHER': 'Researcher',
-    'RESEARCH': 'Researcher',  # Alternative name used in CLI
-    'WRITER': 'Writer',
-    'PUBLISHER': 'Publisher',
-    'TRANSLATOR': 'Translator',
-    'ORCHESTRATOR': 'Orchestrator',  # Orchestrator gets its own card
-    'MASTER': 'Editor',  # ChiefEditor/Master maps to Editor for pipeline
+    "BROWSER": "Browser",
+    "EDITOR": "Editor",
+    "RESEARCHER": "Researcher",
+    "RESEARCH": "Researcher",  # Alternative name used in CLI
+    "WRITER": "Writer",
+    "PUBLISHER": "Publisher",
+    "TRANSLATOR": "Translator",
+    "ORCHESTRATOR": "Orchestrator",  # Orchestrator gets its own card
+    "MASTER": "Editor",  # ChiefEditor/Master maps to Editor for pipeline
     # Phase 2: Additional agent names that need mapping (infrastructure/config agents)
-    'PROVIDERS': None,  # Don't show in pipeline (infrastructure agent)
-    'LANGUAGE': None,  # Don't show in pipeline (config agent)
+    "PROVIDERS": None,  # Don't show in pipeline (infrastructure agent)
+    "LANGUAGE": None,  # Don't show in pipeline (config agent)
     # Disabled agents (not in workflow but may exist in code)
-    'REVIEWER': None,  # Disabled for performance optimization
-    'REVISER': None,  # Disabled for performance optimization
-    'REVISOR': None,  # Alternative name for Reviser
+    "REVIEWER": None,  # Disabled for performance optimization
+    "REVISER": None,  # Disabled for performance optimization
+    "REVISOR": None,  # Alternative name for Reviser
 }
+
 
 class WebSocketManager:
     """Manages WebSocket connections for real-time log streaming"""
 
-    def __init__(self):
+    def __init__(self, outputs_path: Path = None):
         # Active connections: session_id -> set of WebSocket connections
         self.active_connections: Dict[str, Set[WebSocket]] = {}
         # Track agent states per session: session_id -> {agent_name: status}
         self.agent_states: Dict[str, Dict[str, str]] = {}
-        
+        # Outputs directory for log files
+        self.outputs_path = outputs_path or Path(__file__).parent.parent / "outputs"
+        self.outputs_path.mkdir(parents=True, exist_ok=True)
+
     async def connect(self, websocket: WebSocket, session_id: str):
         """Accept a new WebSocket connection for a session"""
         await websocket.accept()
@@ -65,21 +79,21 @@ class WebSocketManager:
             progress=0.0,
             current_stage="Connecting to session",
             agents_completed=0,
-            agents_total=7  # 7 active agents (includes Orchestrator)
+            agents_total=7,  # 7 active agents (includes Orchestrator)
         )
         await self.send_event(session_id, event)
-    
+
     def disconnect(self, websocket: WebSocket, session_id: str):
         """Remove a WebSocket connection"""
         if session_id in self.active_connections:
             self.active_connections[session_id].discard(websocket)
-            
+
             # Clean up empty session
             if not self.active_connections[session_id]:
                 del self.active_connections[session_id]
-                
+
         logger.info(f"WebSocket disconnected for session {session_id}")
-    
+
     async def send_to_session(self, session_id: str, message: dict):
         """Send a message to all connections for a session (legacy method)"""
         if session_id not in self.active_connections:
@@ -98,8 +112,29 @@ class WebSocketManager:
         for connection in disconnected_connections:
             self.active_connections[session_id].discard(connection)
 
+    def _write_log_to_file(self, session_id: str, event: WebSocketEvent):
+        """Write event to log file for persistence"""
+        try:
+            # Get session log file path
+            session_dir = self.outputs_path / session_id
+            session_dir.mkdir(parents=True, exist_ok=True)
+            log_file = session_dir / "session.log"
+
+            # DRY: Use existing to_json_dict() method which properly serializes Pydantic models
+            log_entry = event.to_json_dict()
+
+            # Append to log file (one JSON object per line)
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(log_entry) + "\n")
+
+        except Exception as e:
+            logger.error(f"Failed to write log to file for session {session_id}: {e}")
+
     async def send_event(self, session_id: str, event: WebSocketEvent):
-        """Send a structured event to all connections for a session"""
+        """Send a structured event to all connections for a session and persist to log file"""
+        # Write to log file first (persist even if no active connections)
+        self._write_log_to_file(session_id, event)
+
         if session_id not in self.active_connections:
             return
 
@@ -146,9 +181,11 @@ class WebSocketManager:
             event = json.loads(line.strip())
 
             # Validate it's an agent_update event with proper structure
-            if (isinstance(event, dict) and
-                event.get("type") == "agent_update" and
-                "payload" in event):
+            if (
+                isinstance(event, dict)
+                and event.get("type") == "agent_update"
+                and "payload" in event
+            ):
 
                 payload = event["payload"]
 
@@ -197,11 +234,11 @@ class WebSocketManager:
         # ========================================================================
 
         # Strip ANSI color codes first (e.g., \x1b[36m, \x1b[0m)
-        ansi_escape = re.compile(r'\x1b\[[0-9;]*[mGKHF]')
-        clean_line = ansi_escape.sub('', line).strip()
+        ansi_escape = re.compile(r"\x1b\[[0-9;]*[mGKHF]")
+        clean_line = ansi_escape.sub("", line).strip()
 
         # Try pattern 1: "AGENT_NAME: message" (uppercase with colon)
-        match = re.search(r'([A-Z_]+):\s*(.+)', clean_line)
+        match = re.search(r"([A-Z_]+):\s*(.+)", clean_line)
         if match:
             cli_agent_name = match.group(1)
             message = match.group(2).strip()
@@ -216,7 +253,10 @@ class WebSocketManager:
                     return None
 
         # Try pattern 2: "Agent Name - message" (mixed case with hyphen)
-        match = re.search(r'(Browser|Editor|Researcher|Writer|Publisher|Translator|Reviewer|Reviser)\s*-\s*(.+)', clean_line)
+        match = re.search(
+            r"(Browser|Editor|Researcher|Writer|Publisher|Translator|Reviewer|Reviser)\s*-\s*(.+)",
+            clean_line,
+        )
         if match:
             agent_name = match.group(1)
             message = match.group(2).strip()
@@ -226,7 +266,13 @@ class WebSocketManager:
 
         return None
 
-    async def update_agent_status(self, session_id: str, agent_name: str, message: str, json_payload: dict | None = None):
+    async def update_agent_status(
+        self,
+        session_id: str,
+        agent_name: str,
+        message: str,
+        json_payload: dict | None = None,
+    ):
         """
         Update agent status and send agent_update event (Phase 2: Enhanced for JSON)
 
@@ -266,11 +312,13 @@ class WebSocketManager:
                 agent_name=agent_name,
                 status=status,
                 progress=progress,  # May be None - that's OK
-                message=message
+                message=message,
             )
             await self.send_event(session_id, agent_event)
             progress_str = f"{progress}%" if progress is not None else "status only"
-            logger.info(f"✅ Sent JSON-based agent_update: {agent_name} → {status} ({progress_str})")
+            logger.info(
+                f"✅ Sent JSON-based agent_update: {agent_name} → {status} ({progress_str})"
+            )
             return
 
         # ========================================================================
@@ -280,15 +328,17 @@ class WebSocketManager:
         # Determine agent status based on message keywords
         message_lower = message.lower()
 
-        if any(keyword in message_lower for keyword in ['completed', 'done', 'finished', 'success']):
-            status = 'completed'
+        if any(
+            keyword in message_lower for keyword in ["completed", "done", "finished", "success"]
+        ):
+            status = "completed"
             progress = 100
-        elif any(keyword in message_lower for keyword in ['error', 'failed', 'exception']):
-            status = 'error'
+        elif any(keyword in message_lower for keyword in ["error", "failed", "exception"]):
+            status = "error"
             progress = self.agent_states[session_id].get(f"{agent_name}_progress", 0)
         else:
             # Agent is running
-            status = 'running'
+            status = "running"
             # Estimate progress based on agent position in pipeline
             try:
                 agent_index = AGENT_PIPELINE.index(agent_name)
@@ -308,11 +358,11 @@ class WebSocketManager:
             agent_name=agent_name,
             status=status,
             progress=progress,
-            message=message
+            message=message,
         )
         await self.send_event(session_id, agent_event)
         logger.info(f"📝 Sent text-based agent_update: {agent_name} → {status} ({progress}%)")
-    
+
     async def stream_cli_output(self, session_id: str, cli_executor, subject: str, language: str):
         """Stream CLI output to all connected WebSocket clients using structured events"""
         try:
@@ -326,7 +376,7 @@ class WebSocketManager:
                 progress=0.0,
                 current_stage="Starting research pipeline",
                 agents_completed=0,
-                agents_total=7  # 7 active agents (includes Orchestrator)
+                agents_total=7,  # 7 active agents (includes Orchestrator)
             )
             await self.send_event(session_id, start_event)
 
@@ -337,7 +387,7 @@ class WebSocketManager:
                     session_id=session_id,
                     level="info",
                     message=output_line.rstrip(),
-                    source="cli_executor"
+                    source="cli_executor",
                 )
                 await self.send_event(session_id, log_event)
 
@@ -355,7 +405,7 @@ class WebSocketManager:
                 progress=100.0,
                 current_stage="Research completed",
                 agents_completed=7,
-                agents_total=7  # 7 active agents (includes Orchestrator)
+                agents_total=7,  # 7 active agents (includes Orchestrator)
             )
             await self.send_event(session_id, completion_event)
 
@@ -369,14 +419,14 @@ class WebSocketManager:
                 session_id=session_id,
                 error_type="research_execution_error",
                 message=f"Error during research: {str(e)}",
-                recoverable=False
+                recoverable=False,
             )
             await self.send_event(session_id, error_event)
 
             # Clean up agent states on error
             if session_id in self.agent_states:
                 del self.agent_states[session_id]
-    
+
     async def handle_websocket(self, websocket: WebSocket, session_id: str):
         """Handle WebSocket lifecycle for a session"""
         try:
@@ -384,51 +434,59 @@ class WebSocketManager:
 
             # POC: Send test event after 2 seconds
             await asyncio.sleep(2)
-            await websocket.send_text(json.dumps({
-                "event_type": "agent_update",
-                "payload": {
-                    "agent_id": "proof_of_concept_agent",
-                    "agent_name": "PoC Agent",
-                    "status": "completed",
-                    "message": "Connection validated ✅"
-                },
-                "timestamp": datetime.now().isoformat()
-            }))
+            await websocket.send_text(
+                json.dumps(
+                    {
+                        "event_type": "agent_update",
+                        "payload": {
+                            "agent_id": "proof_of_concept_agent",
+                            "agent_name": "PoC Agent",
+                            "status": "completed",
+                            "message": "Connection validated ✅",
+                        },
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
+            )
 
             # Keep connection alive and listen for any client messages
             while True:
                 try:
                     # Wait for messages from client (like ping/pong)
                     message = await asyncio.wait_for(websocket.receive_text(), timeout=1.0)
-                    
+
                     # Handle client messages if needed
                     try:
                         data = json.loads(message)
                         if data.get("type") == "ping":
-                            await websocket.send_text(json.dumps({
-                                "type": "pong",
-                                "timestamp": datetime.now().isoformat()
-                            }))
+                            await websocket.send_text(
+                                json.dumps(
+                                    {
+                                        "type": "pong",
+                                        "timestamp": datetime.now().isoformat(),
+                                    }
+                                )
+                            )
                     except json.JSONDecodeError:
                         pass  # Ignore invalid JSON
-                        
+
                 except asyncio.TimeoutError:
                     # No message received, continue (this keeps the connection alive)
                     pass
                 except WebSocketDisconnect:
                     break
-                    
+
         except WebSocketDisconnect:
             pass
         except Exception as e:
             logger.error(f"WebSocket error for session {session_id}: {e}")
         finally:
             self.disconnect(websocket, session_id)
-    
+
     def get_session_connection_count(self, session_id: str) -> int:
         """Get number of active connections for a session"""
         return len(self.active_connections.get(session_id, set()))
-    
+
     def get_all_sessions(self) -> list:
         """Get list of all active sessions"""
         return list(self.active_connections.keys())

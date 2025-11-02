@@ -7,6 +7,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useToast } from 'vue-toastification'
 import { WS_RECONNECT_DELAY } from '@/config/api'
+import { getNormalizedFileType } from '@/utils/file-display-utils'
 import type {
   WebSocketEvent,
   AgentUpdatePayload,
@@ -34,6 +35,7 @@ export const useSessionStore = defineStore('session', () => {
   // ============================================================================
 
   const sessionId = ref<string | null>(null)
+  const researchSubject = ref<string>('') // Research topic/title for display
   const wsStatus = ref<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected')
 
   // Agent states (map of agent_id → state)
@@ -113,7 +115,30 @@ export const useSessionStore = defineStore('session', () => {
   })
 
   const isResearchCompleted = computed(() => {
-    return overallStatus.value === 'completed'
+    // Research is only truly completed when:
+    // 1. Overall status is 'completed'
+    // 2. We have files in BOTH languages (English + translated)
+    // This prevents premature "Research Completed!" banner when only English files exist
+
+    if (overallStatus.value !== 'completed') {
+      return false
+    }
+
+    // Count files by language
+    const englishFiles = files.value.filter(f => f.language === 'en' || f.language === 'english')
+    const translatedFiles = files.value.filter(f => f.language !== 'en' && f.language !== 'english')
+
+    // True completion requires both language sets
+    // If we have English files but no translations, research is still ongoing
+    const hasBothLanguages = englishFiles.length > 0 && translatedFiles.length > 0
+    const hasOnlyOneLanguage = files.value.length > 0 && (englishFiles.length === 0 || translatedFiles.length === 0)
+
+    if (hasOnlyOneLanguage) {
+      console.log(`⚠️ Partial completion: ${englishFiles.length} EN, ${translatedFiles.length} translated - waiting for translations`)
+      return false
+    }
+
+    return hasBothLanguages
   })
 
   const hasErrors = computed(() => {
@@ -241,6 +266,20 @@ export const useSessionStore = defineStore('session', () => {
     // This aligns with how orderedAgents computed property looks up agents
     agents.value.set(payload.agent_name, payload)
 
+    // CRITICAL FIX: Clear stale error state when real agent updates arrive
+    // This handles duplicated sessions where initial state showed "failed"
+    // but research actually started successfully
+    if (lastError.value && lastError.value.error_type === 'session_error') {
+      console.log('✅ Clearing stale session error - research is actually running')
+      lastError.value = null
+    }
+
+    // If we were in failed state but now receiving agent updates, switch to running
+    if (overallStatus.value === 'failed' && payload.status !== 'error') {
+      console.log('✅ Overriding failed status - research is actually running')
+      overallStatus.value = 'running'
+    }
+
     // Update overall progress (average of agents with explicit progress)
     const allAgents = Array.from(agents.value.values())
     const agentsWithProgress = allAgents.filter(a => a.progress !== null)
@@ -262,11 +301,10 @@ export const useSessionStore = defineStore('session', () => {
       console.warn(`⚠️ Generated fallback friendly_name for ${payload.filename}`)
     }
 
-    // MIGRATION: Handle old events that don't have file_type
+    // DRY: Use shared utility for file type detection with fallback
     if (!payload.file_type || payload.file_type === 'undefined') {
-      const ext = payload.filename.split('.').pop()?.toLowerCase()
-      payload.file_type = ext || 'unknown'
-      console.warn(`⚠️ Generated fallback file_type for ${payload.filename}: ${payload.file_type}`)
+      payload.file_type = getNormalizedFileType(payload.file_type, payload.filename)
+      console.warn(`⚠️ Used fallback file_type detection for ${payload.filename}: ${payload.file_type}`)
     }
 
     files.value.push(payload)
@@ -306,6 +344,16 @@ export const useSessionStore = defineStore('session', () => {
     agentsCompleted.value = payload.agents_completed
     agentsTotal.value = payload.agents_total
 
+    // CRITICAL FIX: Clear stale error state when receiving real research status
+    // This handles duplicated sessions where initial load showed "failed"
+    // but research actually started successfully
+    if (payload.overall_status === 'running' || payload.overall_status === 'initializing') {
+      if (lastError.value && lastError.value.error_type === 'session_error') {
+        console.log('✅ Clearing stale session error - received real research status')
+        lastError.value = null
+      }
+    }
+
     console.log(`📊 Research status: ${payload.overall_status} (${payload.progress}%)`)
 
     // Show toast notification on completion
@@ -341,6 +389,7 @@ export const useSessionStore = defineStore('session', () => {
   function reset() {
     // Reset all state
     sessionId.value = null
+    researchSubject.value = ''
     agents.value.clear()
     events.value = []
     files.value = []
@@ -350,6 +399,19 @@ export const useSessionStore = defineStore('session', () => {
     agentsCompleted.value = 0
     agentsTotal.value = 7
     lastError.value = null
+
+    // CRITICAL FIX: Initialize all agents to pending state
+    // This ensures the UI shows all agents in the pipeline from the start
+    // WebSocket updates will override these as research progresses
+    AGENT_PIPELINE_ORDER.forEach(agentName => {
+      agents.value.set(agentName, {
+        agent_id: agentName.toLowerCase(),
+        agent_name: agentName,
+        status: 'pending',
+        progress: null,
+        message: 'Waiting to start...'
+      })
+    })
 
     disconnect()
   }
@@ -369,9 +431,10 @@ export const useSessionStore = defineStore('session', () => {
       const { api } = await import('@/services/api')
       const response = await api.submitResearch(subject, language)
 
-      // Save session ID
+      // Save session ID and subject
       localStorage.setItem('tk9_session_id', response.session_id)
       sessionId.value = response.session_id
+      researchSubject.value = subject
 
       // Connect WebSocket for real-time updates
       connect(response.session_id)
@@ -410,6 +473,8 @@ export const useSessionStore = defineStore('session', () => {
       const state = await api.getSessionState(sessionIdParam)
 
       sessionId.value = sessionIdParam
+      // Populate research subject from session state (title from research_sessions table)
+      researchSubject.value = state.subject || state.title || ''
 
       // Re-populate files
       if (state.files && state.files.length > 0) {
@@ -423,14 +488,52 @@ export const useSessionStore = defineStore('session', () => {
         }))
       }
 
+      // Re-populate historical logs from session.log file
+      try {
+        const logData = await api.getSessionLogEvents(sessionIdParam, 1000)
+        if (logData.events && logData.events.length > 0) {
+          events.value = logData.events
+          console.log(`✅ Loaded ${logData.count} historical log events`)
+        }
+      } catch (error) {
+        console.warn('Could not load historical logs:', error)
+        // Not a critical error - continue without logs
+      }
+
       // Set overall status based on CLI status
       if (state.status === 'completed') {
         overallStatus.value = 'completed'
         overallProgress.value = 100
         currentStage.value = 'Research completed'
+        agentsCompleted.value = agentsTotal.value
+
+        // Mark all agents as completed for historical sessions
+        AGENT_PIPELINE_ORDER.forEach(agentName => {
+          agents.value.set(agentName, {
+            agent_id: agentName.toLowerCase(),
+            agent_name: agentName,
+            status: 'completed',
+            progress: 100,
+            message: 'Completed'
+          })
+        })
       } else if (state.status === 'running') {
         overallStatus.value = 'running'
         currentStage.value = 'Research in progress...'
+
+        // CRITICAL FIX: Initialize all agents to pending state
+        // This ensures they show in the UI even if they completed before WebSocket connected
+        // WebSocket updates will override these states as they arrive
+        AGENT_PIPELINE_ORDER.forEach(agentName => {
+          agents.value.set(agentName, {
+            agent_id: agentName.toLowerCase(),
+            agent_name: agentName,
+            status: 'pending',
+            progress: null,
+            message: 'Waiting to start...'
+          })
+        })
+        console.log('✓ Initialized all agents to pending state - WebSocket will update them')
       } else if (state.status === 'failed') {
         overallStatus.value = 'failed'
         lastError.value = {
@@ -438,6 +541,16 @@ export const useSessionStore = defineStore('session', () => {
           message: state.error || 'Session failed',
           recoverable: false
         }
+        // Mark all agents as error for failed sessions
+        AGENT_PIPELINE_ORDER.forEach(agentName => {
+          agents.value.set(agentName, {
+            agent_id: agentName.toLowerCase(),
+            agent_name: agentName,
+            status: 'error',
+            progress: null,
+            message: 'Session failed'
+          })
+        })
       }
 
       console.log('✅ Store re-hydrated from server state:', state)
@@ -463,6 +576,7 @@ export const useSessionStore = defineStore('session', () => {
   return {
     // State
     sessionId,
+    researchSubject,
     wsStatus,
     agents,
     events,

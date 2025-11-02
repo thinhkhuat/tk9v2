@@ -1,0 +1,188 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>4</storyId>
+    <title>Row-Level Security (RLS) Policies Implementation</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-01</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/1-4-row-level-security-rls-policies-implementation.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>security-conscious user</asA>
+    <iWant>my research data to be completely isolated from other users</iWant>
+    <soThat>no unauthorized access to my research is possible</soThat>
+    <tasks>
+- Task 1: Enable Row-Level Security on tables (AC: #1)
+- Task 2: Implement users table RLS policies (AC: #2)
+- Task 3: Implement research_sessions SELECT policy (AC: #3)
+- Task 4: Implement research_sessions INSERT/UPDATE policies (AC: #4)
+- Task 5: Implement draft_files RLS policy (AC: #5)
+- Task 6: Create RLS migration script (AC: All)
+- Task 7: Apply RLS migration to Supabase (AC: All)
+- Task 8: Comprehensive RLS security testing (AC: #6)
+- Task 9: Document RLS policies (AC: #7)
+- Task 10: Update backend to use RLS-aware queries (AC: All)
+- Task 11: Write integration tests for RLS (AC: #6)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. Enable RLS on `users`, `research_sessions`, and `draft_files` tables
+2. Implement policy: `users` table SELECT restricted to `auth.uid() = id`
+3. Implement policy: `research_sessions` table SELECT restricted to `user_id = auth.uid()`
+4. Implement policy: `research_sessions` table INSERT/UPDATE restricted to `user_id = auth.uid()`
+5. Implement policy: `draft_files` table access restricted via join to `research_sessions` where user owns session
+6. Test RLS policies: User A cannot query User B's sessions via SQL or API
+7. Document RLS policies in `docs/security/rls-policies.md`
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/architecture.md</path>
+        <title>TK9 Decision Architecture</title>
+        <section>Security Architecture</section>
+        <snippet>RLS is the primary security mechanism for TK9. Enforces data isolation at PostgreSQL database level using auth.uid() from JWT tokens. Policies use USING clause for SELECT and WITH CHECK for INSERT/UPDATE operations.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture.md</path>
+        <title>TK9 Decision Architecture</title>
+        <section>Database Schema (RLS Policies)</section>
+        <snippet>Complete SQL definitions for RLS policies on users, research_sessions, and draft_files tables. Includes auth.uid() usage patterns and policy testing strategies.</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>Non-Functional Requirements - Security</section>
+        <snippet>NFR007: RLS policies shall be tested and verified to prevent unauthorized access to other users' research data.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>Epic Breakdown</title>
+        <section>Story 1.4: Row-Level Security (RLS) Policies Implementation</section>
+        <snippet>Full story definition with acceptance criteria for implementing RLS on 3 tables with 6 policies. Includes testing requirements for multi-user scenarios.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/1-3-user-and-session-database-schema.md</path>
+        <title>Previous Story - Database Schema</title>
+        <section>Completion Notes</section>
+        <snippet>Database tables (users, research_sessions, draft_files) created with indexes and foreign keys. Migration applied successfully. Backend integrated with Supabase client.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <file>
+        <path>web_dashboard/database.py</path>
+        <kind>service</kind>
+        <symbol>get_supabase_client, create_research_session, get_user_sessions</symbol>
+        <lines>1-200</lines>
+        <reason>Existing database operations that will be automatically protected by RLS policies. Contains Supabase client initialization and session CRUD functions.</reason>
+      </file>
+      <file>
+        <path>web_dashboard/middleware/auth_middleware.py</path>
+        <kind>middleware</kind>
+        <symbol>AuthMiddleware, verify_jwt_token</symbol>
+        <lines>1-100</lines>
+        <reason>JWT middleware extracts user_id from tokens which feeds into auth.uid() for RLS enforcement. Critical for RLS context.</reason>
+      </file>
+      <file>
+        <path>web_dashboard/migrations/20251101030227_create_users_sessions_drafts_tables.sql</path>
+        <kind>migration</kind>
+        <symbol>users, research_sessions, draft_files tables</symbol>
+        <lines>all</lines>
+        <reason>Existing database schema that RLS policies will be applied to. Shows table structure and relationships.</reason>
+      </file>
+      <file>
+        <path>web_dashboard/tests/integration/test_database_operations.py</path>
+        <kind>test</kind>
+        <symbol>test_create_research_session, test_cascade_delete</symbol>
+        <lines>1-300</lines>
+        <reason>Existing database integration tests showing testing patterns. New RLS tests will follow similar structure.</reason>
+      </file>
+      <file>
+        <path>web_dashboard/models.py</path>
+        <kind>model</kind>
+        <symbol>User, ResearchSessionDB, DraftFile, SessionStatusEnum</symbol>
+        <lines>1-150</lines>
+        <reason>Pydantic models matching database schema. Shows field definitions and validation rules.</reason>
+      </file>
+    </code>
+    <dependencies>
+      <python>
+        <package name="supabase" version="2.11.0">PostgreSQL client with built-in RLS support</package>
+        <package name="pyjwt" version="2.10.1">JWT token verification for auth.uid() extraction</package>
+        <package name="fastapi" version="0.104.1">API framework with middleware support</package>
+        <package name="pytest" version="latest">Testing framework for RLS integration tests</package>
+      </python>
+      <javascript>
+        <package name="@supabase/supabase-js" version="^2.78.0">Supabase client for frontend auth</package>
+        <package name="pinia" version="^3.0.3">State management for auth state</package>
+        <package name="vue" version="^3.5.22">Frontend framework</package>
+      </javascript>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>RLS policies MUST use auth.uid() function which extracts user ID from JWT token sub claim</constraint>
+    <constraint>All database queries automatically enforce RLS - do NOT add manual WHERE user_id filters (creates redundancy)</constraint>
+    <constraint>DELETE policies not needed in MVP (no user-facing delete functionality)</constraint>
+    <constraint>draft_files INSERT/UPDATE policies not needed (only backend file detection service writes drafts)</constraint>
+    <constraint>Policies must handle NULL auth.uid() gracefully (unauthenticated requests should return empty results, not errors)</constraint>
+    <constraint>Migration must include rollback section with DROP POLICY and DISABLE RLS statements</constraint>
+    <constraint>Test both via API endpoints (realistic) and direct SQL queries (verify database enforcement)</constraint>
+    <constraint>Supabase client automatically respects RLS - backend code does not bypass security</constraint>
+    <constraint>Service role key bypasses RLS - only use for admin operations, never expose to frontend</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>Supabase Auth - auth.uid()</name>
+      <kind>Database Function</kind>
+      <signature>auth.uid() RETURNS UUID</signature>
+      <path>Supabase built-in</path>
+      <description>Returns authenticated user's UUID from JWT token. Returns NULL if unauthenticated. Used in all RLS policy USING and WITH CHECK clauses.</description>
+    </interface>
+    <interface>
+      <name>CREATE POLICY Statement</name>
+      <kind>SQL DDL</kind>
+      <signature>CREATE POLICY "policy_name" ON table_name FOR operation USING (condition) WITH CHECK (condition)</signature>
+      <path>PostgreSQL RLS</path>
+      <description>Defines row-level security policy. USING filters visible rows (SELECT/UPDATE/DELETE), WITH CHECK validates inserted/updated rows.</description>
+    </interface>
+    <interface>
+      <name>get_supabase_client()</name>
+      <kind>Python Function</kind>
+      <signature>get_supabase_client() -> Client</signature>
+      <path>web_dashboard/database.py</path>
+      <description>Returns configured Supabase client with service role key. Client automatically enforces RLS policies based on auth context.</description>
+    </interface>
+    <interface>
+      <name>verify_jwt_token()</name>
+      <kind>Python Function</kind>
+      <signature>verify_jwt_token(token: str) -> dict</signature>
+      <path>web_dashboard/middleware/auth_middleware.py</path>
+      <description>Validates JWT token and extracts user_id (sub claim) which becomes auth.uid() in database context.</description>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+Backend: pytest with integration tests in tests/integration/. Use @pytest.mark.asyncio for async functions. Test both positive (authorized access) and negative (unauthorized access) cases. Frontend: Not applicable for RLS story (database-level security).
+    </standards>
+    <locations>
+      <location>web_dashboard/tests/integration/test_auth_integration.py (NEW - to be created)</location>
+      <location>web_dashboard/tests/integration/test_database_operations.py (existing patterns to follow)</location>
+    </locations>
+    <ideas>
+      <idea ac="1">Test RLS enabled on all tables by querying pg_tables.rowsecurity column</idea>
+      <idea ac="2">Test users table: User A queries own record (success), User B cannot query User A's record (empty result)</idea>
+      <idea ac="3">Test research_sessions SELECT: User A creates session, User B queries with User A's session_id (empty result)</idea>
+      <idea ac="4">Test research_sessions INSERT: User B attempts INSERT with User A's user_id (permission denied error)</idea>
+      <idea ac="4">Test research_sessions UPDATE: User B attempts UPDATE on User A's session (permission denied error)</idea>
+      <idea ac="5">Test draft_files: User A creates draft, User B queries draft via session_id (empty result due to subquery filter)</idea>
+      <idea ac="6">Multi-user scenario: Create 2 test users, each creates sessions, verify complete isolation via both API and SQL</idea>
+      <idea ac="7">Verify documentation file exists at docs/security/rls-policies.md with all policy definitions</idea>
+    </ideas>
+  </tests>
+</story-context>

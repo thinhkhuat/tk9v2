@@ -16,17 +16,17 @@ const executionAgents = computed(() => {
 </script>
 
 <template>
-  <div class="bg-white p-6 rounded-lg shadow-md">
-    <h2 class="text-xl font-bold mb-6 text-gray-700">
+  <div class="bg-white p-2 rounded-lg shadow h-full flex flex-col">
+    <h2 class="text-xs font-bold mb-1.5 text-gray-700">
       🤖 Agent Pipeline
     </h2>
 
     <!-- Two-Tier Layout with Grid for Proper Alignment -->
-    <div class="pipeline-container">
+    <div class="pipeline-container flex-1">
       <!-- Orchestrator Agent (Supervisor) - Spans 3 columns to center over 6 agents -->
-      <div class="orchestrator-tier mb-4">
+      <div class="orchestrator-tier mb-1">
         <!-- Grid container for orchestrator (centered over middle of 6-agent grid) -->
-        <div class="grid grid-cols-6 gap-2">
+        <div class="grid grid-cols-6 gap-1">
           <!-- Empty spacer for first 1.5 columns -->
           <div class="col-span-2"></div>
 
@@ -35,8 +35,8 @@ const executionAgents = computed(() => {
             <AgentCard v-if="orchestratorAgent" :agent="orchestratorAgent" class="orchestrator-card" />
 
             <!-- Supervision Label -->
-            <div class="text-center mt-2 mb-2 text-xs text-gray-500 font-medium">
-              ⬇ Oversees Research Pipeline ⬇
+            <div class="text-center mt-0.5 mb-0.5 text-[9px] text-gray-500 font-medium">
+              ⬇ Oversees Pipeline ⬇
             </div>
           </div>
 
@@ -47,7 +47,7 @@ const executionAgents = computed(() => {
 
       <!-- Execution Pipeline (6 Agents in Grid) -->
       <div class="execution-tier">
-        <div class="grid grid-cols-6 gap-2">
+        <div class="grid grid-cols-6 gap-1">
           <template v-for="(agent, index) in executionAgents" :key="agent.agent_id">
             <!-- Agent Card Column -->
             <div class="flex flex-col items-center">

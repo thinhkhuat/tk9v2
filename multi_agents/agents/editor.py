@@ -1,19 +1,24 @@
-from datetime import datetime
 import asyncio
+from datetime import datetime
 from typing import Dict, List, Optional
 
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
 
-from .utils.views import print_agent_output
-from .utils.llms import call_model
 from ..memory.draft import DraftState
-from . import ResearchAgent
+from .researcher import ResearchAgent
+from .utils.llms import call_model
+from .utils.views import print_agent_output  # FIX: Missing import
+
+# Lazy import to avoid circular dependency
+# ResearchAgent imported at runtime when needed
 
 
 class EditorAgent:
     """Agent responsible for editing and managing code."""
 
-    def __init__(self, websocket=None, stream_output=None, tone=None, headers=None, draft_manager=None):
+    def __init__(
+        self, websocket=None, stream_output=None, tone=None, headers=None, draft_manager=None
+    ):
         self.websocket = websocket
         self.stream_output = stream_output
         self.tone = tone
@@ -51,102 +56,106 @@ class EditorAgent:
             # Extract the original query from the task for a better fallback
             task = research_state.get("task", {})
             original_query = task.get("query", "Research Report")
-            
-            print_agent_output(f"JSON parsing failed, using query-based fallback plan", agent="EDITOR")
-            
+
+            print_agent_output(
+                "JSON parsing failed, using query-based fallback plan", agent="EDITOR"
+            )
+
             # Create meaningful sections based on the user's query
             query_words = original_query.lower()
-            if any(word in query_words for word in ['tariff', 'trade', 'policy', 'economic']):
+            if any(word in query_words for word in ["tariff", "trade", "policy", "economic"]):
                 sections = [
                     "Policy Background and Context",
-                    "Economic Impact Analysis", 
+                    "Economic Impact Analysis",
                     "International Trade Implications",
                     "Implementation and Enforcement",
-                    "Future Outlook and Recommendations"
+                    "Future Outlook and Recommendations",
                 ]
-            elif any(word in query_words for word in ['vietnam', 'vietnamese', 'vietnam']):
+            elif any(word in query_words for word in ["vietnam", "vietnamese", "vietnam"]):
                 sections = [
                     "Vietnam Economic Overview",
                     "Trade Relations Analysis",
-                    "Policy Impact Assessment", 
+                    "Policy Impact Assessment",
                     "Strategic Implications",
-                    "Future Prospects"
+                    "Future Prospects",
                 ]
-            elif any(word in query_words for word in ['court', 'ruling', 'legal', 'appeals']):
+            elif any(word in query_words for word in ["court", "ruling", "legal", "appeals"]):
                 sections = [
                     "Legal Background and Context",
-                    "Court Decision Analysis", 
+                    "Court Decision Analysis",
                     "Legal Precedents and Implications",
                     "Enforcement Mechanisms",
-                    "Future Legal Considerations"
+                    "Future Legal Considerations",
                 ]
             else:
                 # Generic fallback based on query
                 sections = [
                     f"Background of {original_query}",
-                    f"Current State Analysis",
-                    f"Key Factors and Drivers", 
-                    f"Impact Assessment",
-                    f"Future Implications"
+                    "Current State Analysis",
+                    "Key Factors and Drivers",
+                    "Impact Assessment",
+                    "Future Implications",
                 ]
-            
+
             plan = {
                 "title": original_query,
-                "date": datetime.now().strftime('%d/%m/%Y'),
-                "sections": sections[:max_sections]  # Respect max_sections limit
+                "date": datetime.now().strftime("%d/%m/%Y"),
+                "sections": sections[:max_sections],  # Respect max_sections limit
             }
 
         # Apply section limits from task configuration and validate sections
         sections = plan.get("sections", [])
         max_sections = task.get("max_sections", 5)  # Default to 5 if not specified
-        
+
         # If sections are empty or invalid, generate fallback sections
         if not sections or len(sections) == 0:
             task = research_state.get("task", {})
             original_query = task.get("query", "Research Report")
-            print_agent_output(f"No sections generated, creating fallback sections based on query", agent="EDITOR")
-            
+            print_agent_output(
+                "No sections generated, creating fallback sections based on query", agent="EDITOR"
+            )
+
             # Create meaningful sections based on the user's query
             query_words = original_query.lower()
-            if any(word in query_words for word in ['tariff', 'trade', 'policy', 'economic']):
+            if any(word in query_words for word in ["tariff", "trade", "policy", "economic"]):
                 sections = [
                     "Policy Background and Context",
-                    "Economic Impact Analysis", 
+                    "Economic Impact Analysis",
                     "International Trade Implications",
                     "Implementation and Enforcement",
-                    "Future Outlook and Recommendations"
+                    "Future Outlook and Recommendations",
                 ]
-            elif any(word in query_words for word in ['vietnam', 'vietnamese']):
+            elif any(word in query_words for word in ["vietnam", "vietnamese"]):
                 sections = [
                     "Vietnam Economic Overview",
                     "Trade Relations Analysis",
-                    "Policy Impact Assessment", 
+                    "Policy Impact Assessment",
                     "Strategic Implications",
-                    "Future Prospects"
+                    "Future Prospects",
                 ]
-            elif any(word in query_words for word in ['court', 'ruling', 'legal', 'appeals']):
+            elif any(word in query_words for word in ["court", "ruling", "legal", "appeals"]):
                 sections = [
                     "Legal Background and Context",
-                    "Court Decision Analysis", 
+                    "Court Decision Analysis",
                     "Legal Precedents and Implications",
                     "Enforcement Mechanisms",
-                    "Future Legal Considerations"
+                    "Future Legal Considerations",
                 ]
             else:
                 # Generic fallback based on query
                 sections = [
-                    f"Background and Context",
-                    f"Current State Analysis",
-                    f"Key Factors and Impact", 
-                    f"Implications and Effects",
-                    f"Future Outlook"
+                    "Background and Context",
+                    "Current State Analysis",
+                    "Key Factors and Impact",
+                    "Implications and Effects",
+                    "Future Outlook",
                 ]
-            
+
             # Update the plan with fallback sections and correct title
             plan["sections"] = sections
             if plan.get("title") in ["Untitled Research Project", "Research Report", None, ""]:
                 plan["title"] = original_query
-        
+
         # Only limit if we exceed the configured maximum
         if len(sections) > max_sections:
             sections = sections[:max_sections]
@@ -158,7 +167,7 @@ class EditorAgent:
             "date": plan.get("date"),
             "sections": sections,
         }
-        
+
         # Save planning output
         if self.draft_manager:
             self.draft_manager.save_agent_output(
@@ -169,10 +178,10 @@ class EditorAgent:
                 metadata={
                     "max_sections": max_sections,
                     "include_human_feedback": include_human_feedback,
-                    "sections_planned": len(sections)
-                }
+                    "sections_planned": len(sections),
+                },
             )
-            
+
             # Save research state after planning
             self.draft_manager.save_research_state("planning", {**research_state, **result})
 
@@ -195,16 +204,13 @@ class EditorAgent:
         self._log_parallel_research(queries)
 
         final_drafts = [
-            chain.ainvoke(self._create_task_input(
-                research_state, query, title))
+            chain.ainvoke(self._create_task_input(research_state, query, title))
             for query in queries
         ]
-        research_results = [
-            result["draft"] for result in await asyncio.gather(*final_drafts)
-        ]
+        research_results = [result["draft"] for result in await asyncio.gather(*final_drafts)]
 
         result = {"research_data": research_results}
-        
+
         # Save parallel research results
         if self.draft_manager:
             self.draft_manager.save_agent_output(
@@ -215,40 +221,53 @@ class EditorAgent:
                 metadata={
                     "queries": queries,
                     "title": title,
-                    "results_count": len(research_results)
-                }
+                    "results_count": len(research_results),
+                },
             )
-            
+
             # Save research state after parallel research
-            self.draft_manager.save_research_state("parallel_research", {**research_state, **result})
+            self.draft_manager.save_research_state(
+                "parallel_research", {**research_state, **result}
+            )
 
         return result
 
-    def _create_planning_prompt(self, initial_research: str, include_human_feedback: bool,
-                                human_feedback: Optional[str], max_sections: int) -> List[Dict[str, str]]:
+    def _create_planning_prompt(
+        self,
+        initial_research: str,
+        include_human_feedback: bool,
+        human_feedback: Optional[str],
+        max_sections: int,
+    ) -> List[Dict[str, str]]:
         """Create the prompt for research planning."""
         return [
             {
                 "role": "system",
                 "content": "You are a research editor. Your goal is to oversee the research project "
-                           "from inception to completion. Your main task is to plan the article section "
-                           "layout based on an initial research summary.\n ",
+                "from inception to completion. Your main task is to plan the article section "
+                "layout based on an initial research summary.\n ",
             },
             {
                 "role": "user",
-                "content": self._format_planning_instructions(initial_research, include_human_feedback,
-                                                              human_feedback, max_sections),
+                "content": self._format_planning_instructions(
+                    initial_research, include_human_feedback, human_feedback, max_sections
+                ),
             },
         ]
 
-    def _format_planning_instructions(self, initial_research: str, include_human_feedback: bool,
-                                      human_feedback: Optional[str], max_sections: int) -> str:
+    def _format_planning_instructions(
+        self,
+        initial_research: str,
+        include_human_feedback: bool,
+        human_feedback: Optional[str],
+        max_sections: int,
+    ) -> str:
         """Format the instructions for research planning."""
-        today = datetime.now().strftime('%d/%m/%Y')
+        today = datetime.now().strftime("%d/%m/%Y")
         feedback_instruction = (
             f"Human feedback: {human_feedback}. You must plan the sections based on the human feedback."
-            if include_human_feedback and human_feedback and human_feedback != 'no'
-            else ''
+            if include_human_feedback and human_feedback and human_feedback != "no"
+            else ""
         )
 
         return f"""Today's date is {today}
@@ -270,8 +289,12 @@ class EditorAgent:
 
     def _initialize_agents(self) -> Dict[str, any]:
         """Initialize the research agent (simplified workflow)."""
+        # Lazy import to avoid circular dependency
+
         return {
-            "research": ResearchAgent(self.websocket, self.stream_output, self.tone, self.headers, self.draft_manager),
+            "research": ResearchAgent(
+                self.websocket, self.stream_output, self.tone, self.headers, self.draft_manager
+            ),
         }
 
     def _create_workflow(self) -> StateGraph:
@@ -288,49 +311,53 @@ class EditorAgent:
     def _should_revise_or_accept(self, draft_state: Dict[str, any]) -> str:
         """
         Determine whether to revise or accept the draft based on review and revision count.
-        
+
         Args:
             draft_state: The current draft state
-            
+
         Returns:
             "accept" or "revise"
         """
         MAX_REVISIONS = 3  # Maximum number of revision cycles
-        
+
         review = draft_state.get("review")
         revision_count = draft_state.get("revision_count", 0)
-        
+
         # If no review (reviewer accepted the draft), accept
         if review is None:
             return "accept"
-        
+
         # If we've reached max revisions, force accept to prevent infinite loop
         if revision_count >= MAX_REVISIONS:
             print_agent_output(
                 f"Reached maximum revisions ({MAX_REVISIONS}), accepting draft to prevent infinite loop",
-                agent="EDITOR"
+                agent="EDITOR",
             )
             return "accept"
-        
+
         # Otherwise, revise
         return "revise"
 
     def _log_parallel_research(self, queries: List[str]) -> None:
         """Log the start of parallel research tasks."""
         if self.websocket and self.stream_output:
-            asyncio.create_task(self.stream_output(
-                "logs",
-                "parallel_research",
-                f"Running parallel research for the following queries: {queries}",
-                self.websocket,
-            ))
+            asyncio.create_task(
+                self.stream_output(
+                    "logs",
+                    "parallel_research",
+                    f"Running parallel research for the following queries: {queries}",
+                    self.websocket,
+                )
+            )
         else:
             print_agent_output(
                 f"Running the following research tasks in parallel: {queries}...",
                 agent="EDITOR",
             )
 
-    def _create_task_input(self, research_state: Dict[str, any], query: str, title: str) -> Dict[str, any]:
+    def _create_task_input(
+        self, research_state: Dict[str, any], query: str, title: str
+    ) -> Dict[str, any]:
         """Create the input for a single research task."""
         return {
             "task": research_state.get("task"),

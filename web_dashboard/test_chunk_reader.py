@@ -8,6 +8,7 @@ import asyncio
 import sys
 from pathlib import Path
 
+
 async def test_chunk_reader():
     """Test the chunk-based reader with various edge cases"""
 
@@ -47,7 +48,7 @@ print("Final normal line")
 
     # Import the fixed CLI executor
     sys.path.insert(0, str(Path(__file__).parent))
-    from cli_executor import CLIExecutor, ANSI_ESCAPE_PATTERN
+    from cli_executor import ANSI_ESCAPE_PATTERN, CLIExecutor
 
     print("\n✅ Imported CLIExecutor with chunk-based reader")
     print(f"✅ ANSI escape pattern: {ANSI_ESCAPE_PATTERN.pattern[:50]}...")
@@ -57,15 +58,15 @@ print("Final normal line")
     print("Executing test CLI script...")
     print("=" * 80 + "\n")
 
-    executor = CLIExecutor(project_root=Path.cwd())
+    _executor = CLIExecutor(project_root=Path.cwd())  # noqa: F841 - Reserved for future use
 
     # Create a mock test that runs our test script
-    import subprocess
 
     process = await asyncio.create_subprocess_exec(
-        sys.executable, str(test_file),
+        sys.executable,
+        str(test_file),
         stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT
+        stderr=asyncio.subprocess.STDOUT,
     )
 
     # Read using chunk-based method
@@ -79,11 +80,11 @@ print("Final normal line")
         if not chunk:
             break
 
-        buffer += chunk.decode('utf-8', errors='replace')
+        buffer += chunk.decode("utf-8", errors="replace")
 
-        while '\n' in buffer:
-            line, _, buffer = buffer.partition('\n')
-            cleaned_line = ANSI_ESCAPE_PATTERN.sub('', line).strip()
+        while "\n" in buffer:
+            line, _, buffer = buffer.partition("\n")
+            cleaned_line = ANSI_ESCAPE_PATTERN.sub("", line).strip()
 
             if cleaned_line:
                 line_count += 1
@@ -99,7 +100,7 @@ print("Final normal line")
 
     # Handle remaining buffer
     if buffer:
-        cleaned_buffer = ANSI_ESCAPE_PATTERN.sub('', buffer).strip()
+        cleaned_buffer = ANSI_ESCAPE_PATTERN.sub("", buffer).strip()
         if cleaned_buffer:
             line_count += 1
             print(f"✅ Final buffer: {cleaned_buffer}")
@@ -113,11 +114,12 @@ print("Final normal line")
     print(f"✅ Total lines processed: {line_count}")
     print(f"✅ Maximum line length: {max_line_length:,} chars")
     print(f"✅ Long lines (>1000 chars): {long_lines_count}")
-    print(f"✅ No LimitOverrunError thrown!")
+    print("✅ No LimitOverrunError thrown!")
     print("\n🎉 Chunk-based reader successfully handled all edge cases!")
 
     # Cleanup
     test_file.unlink()
+
 
 if __name__ == "__main__":
     asyncio.run(test_chunk_reader())

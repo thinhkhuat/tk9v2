@@ -6,7 +6,7 @@
 import axios, { type AxiosInstance, type AxiosError } from 'axios'
 import { MIN_SUBJECT_LENGTH, MAX_SUBJECT_LENGTH } from '@/config/validation'
 import { API_BASE_URL, API_TIMEOUT, FILE_DOWNLOAD_TIMEOUT } from '@/config/api'
-import { guessFileTypeFromFilename, isBinaryFileType } from '@/utils/file-display-utils'
+import { detectFileExtension, isBinaryFileType } from '@/utils/file-display-utils'
 
 // Response Types
 export interface ResearchResponse {
@@ -317,6 +317,36 @@ export const api = {
   },
 
   /**
+   * Download session logs file
+   */
+  async downloadSessionLogs(sessionId: string): Promise<Blob> {
+    try {
+      const response = await apiClient.get(`/api/sessions/${sessionId}/logs`, {
+        responseType: 'blob'
+      })
+      return response.data
+    } catch (error) {
+      console.error(`Failed to download logs for session ${sessionId}:`, error)
+      throw error
+    }
+  },
+
+  /**
+   * Get session log events for rehydration
+   */
+  async getSessionLogEvents(sessionId: string, limit: number = 1000): Promise<any> {
+    try {
+      const response = await apiClient.get(`/api/sessions/${sessionId}/logs/events`, {
+        params: { limit }
+      })
+      return response.data
+    } catch (error) {
+      console.error(`Failed to get log events for session ${sessionId}:`, error)
+      throw error
+    }
+  },
+
+  /**
    * Get file preview
    */
   async getFilePreview(sessionId: string, filename: string, lines: number = 50): Promise<any> {
@@ -414,10 +444,11 @@ export const api = {
    */
   async getFileContent(fileId: string, filePath: string): Promise<string | ArrayBuffer> {
     try {
-      // PRE-REQUEST: Guess file type from filename to determine response format
+      // DRY: Use shared utility for file type detection
+      // PRE-REQUEST: Detect file type from filename to determine response format
       // This is a legitimate use case - we need to tell axios the responseType BEFORE the request
-      const fileType = guessFileTypeFromFilename(filePath)
-      const isBinary = isBinaryFileType(fileType)
+      const fileExt = detectFileExtension(null, filePath)
+      const isBinary = fileExt ? isBinaryFileType(fileExt) : false
 
       const response = await apiClient.get(`/api/files/content`, {
         params: { file_id: fileId, file_path: filePath },

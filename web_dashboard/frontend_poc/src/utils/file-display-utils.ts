@@ -135,42 +135,80 @@ export function compareFiles(a: ParsedFileData, b: ParsedFileData): number {
 // Import from there to avoid duplication (DRY principle)
 
 /**
- * PRE-UPLOAD ONLY: Guess file type from filename extension
+ * SINGLE SOURCE OF TRUTH for file type detection in frontend
  *
- * IMPORTANT: This is NOT authoritative parsing. It's only for:
- * - File upload previews (before backend processes the file)
- * - Client-side UI hints
+ * Extracts file extension with proper fallback handling.
+ * This replaces all scattered file type detection logic.
  *
- * Backend filename_utils.py remains the single source of truth.
- *
- * @param filename - Filename with extension
- * @returns Guessed file type
+ * @param file_type - File type from backend (primary source)
+ * @param filename - Filename for fallback extraction
+ * @returns Normalized file extension (lowercase, without dot)
  */
-export function guessFileTypeFromFilename(filename: string): string {
-  const extension = filename.split('.').pop()?.toLowerCase()
+export function detectFileExtension(file_type?: string | null, filename?: string | null): string | null {
+  // Primary: Use backend-provided file_type
+  let ext = file_type?.toLowerCase()
 
-  switch (extension) {
-    case 'pdf':
-      return 'pdf'
-    case 'docx':
-    case 'doc':
-      return 'docx'
-    case 'md':
-    case 'markdown':
-      return 'md'
-    case 'txt':
-    case 'text':
-      return 'txt'
-    case 'json':
-      return 'json'
-    case 'xml':
-      return 'xml'
-    case 'html':
-    case 'htm':
-      return 'html'
-    default:
-      return 'unknown'
+  // Fallback: Extract extension from filename if file_type is missing/undefined
+  if (!ext && filename) {
+    const match = filename.match(/\.([^.]+)$/)
+    ext = match ? match[1].toLowerCase() : null
   }
+
+  if (!ext) return null
+
+  // Remove leading dot if present (.md → md)
+  ext = ext.replace(/^\./, '')
+
+  return ext
+}
+
+/**
+ * Viewer type classification for file preview
+ *
+ * @param extension - File extension from detectFileExtension()
+ * @returns Viewer type: 'text' | 'code' | 'docx' | 'pdf' | 'image' | null
+ */
+export function getViewerType(extension: string | null): 'text' | 'code' | 'docx' | 'pdf' | 'image' | null {
+  if (!extension) return null
+
+  // Text files (markdown, plain text, JSON)
+  if (['md', 'markdown', 'txt', 'json'].includes(extension)) {
+    return 'text'
+  }
+
+  // Code files
+  if (['py', 'js', 'ts', 'jsx', 'tsx', 'vue', 'yaml', 'yml', 'html', 'css', 'scss', 'sh', 'bash'].includes(extension)) {
+    return 'code'
+  }
+
+  // DOCX
+  if (extension === 'docx' || extension === 'doc') {
+    return 'docx'
+  }
+
+  // Images
+  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'].includes(extension)) {
+    return 'image'
+  }
+
+  // PDF
+  if (extension === 'pdf') {
+    return 'pdf'
+  }
+
+  return null
+}
+
+/**
+ * Get normalized file type for display
+ *
+ * @param file_type - File type from backend
+ * @param filename - Filename for fallback
+ * @returns Display-friendly file type (e.g., 'pdf', 'docx', 'md')
+ */
+export function getNormalizedFileType(file_type?: string | null, filename?: string | null): string {
+  const ext = detectFileExtension(file_type, filename)
+  return ext || 'unknown'
 }
 
 /**
@@ -201,4 +239,37 @@ export function normalizeFileData(fileEvent: any): ParsedFileData {
     is_translated: (fileEvent.filename || '').includes('_'),
     size_bytes: fileEvent.size_bytes || 0
   }
+}
+
+/**
+ * Extract filesystem path from download URL for API requests
+ *
+ * Converts download URL to the format expected by backend file content API.
+ * Backend expects: {session_id}/{filename}
+ * Frontend receives: /download/{session_id}/{filename}
+ *
+ * @param downloadPath - Download URL path (e.g., "/download/abc123/file.pdf")
+ * @param fallbackFilename - Fallback filename if path parsing fails
+ * @returns Filesystem path for backend API (e.g., "abc123/file.pdf")
+ *
+ * @example
+ * extractFilePathFromDownloadUrl("/download/abc123/file.pdf", "file.pdf")
+ * // Returns: "abc123/file.pdf"
+ */
+export function extractFilePathFromDownloadUrl(
+  downloadPath: string | null | undefined,
+  fallbackFilename: string
+): string {
+  if (!downloadPath) {
+    return fallbackFilename
+  }
+
+  // Remove /download/ prefix to get session_id/filename
+  const pathMatch = downloadPath.match(/^\/download\/(.+)$/)
+  if (pathMatch) {
+    return pathMatch[1] // Returns: {session_id}/{filename}
+  }
+
+  // Fallback to filename if pattern doesn't match
+  return fallbackFilename
 }

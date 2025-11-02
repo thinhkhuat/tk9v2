@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TK9 - Research Execution Waiting Experience Mockup</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f7fa;
+      min-height: 100vh;
+    }
+
+    /* Dashboard Layout */
+    .dashboard {
+      display: grid;
+      grid-template-columns: 250px 1fr;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      background: #263238;
+      color: white;
+      padding: 2rem 1rem;
+    }
+
+    .sidebar h2 {
+      font-size: 1.5rem;
+      margin-bottom: 2rem;
+      color: #42a5f5;
+    }
+
+    .nav-item {
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .nav-item:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .nav-item.active {
+      background: #42a5f5;
+    }
+
+    .main-content {
+      padding: 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .page-header {
+      margin-bottom: 2rem;
+    }
+
+    .page-header h1 {
+      font-size: 2rem;
+      color: #2c3e50;
+      margin-bottom: 0.5rem;
+    }
+
+    .breadcrumb {
+      color: #78909c;
+      font-size: 0.875rem;
+    }
+
+    /* Research Execution Container */
+    .research-execution {
+      background: white;
+      border-radius: 12px;
+      padding: 3rem;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+      text-align: center;
+    }
+
+    .research-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 1rem;
+    }
+
+    .research-meta {
+      color: #78909c;
+      font-size: 0.875rem;
+      margin-bottom: 3rem;
+    }
+
+    /* Waiting Experience */
+    .waiting-experience {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    /* Origami Animation */
+    .origami-container {
+      width: 192px;
+      height: 192px;
+      margin: 0 auto 2rem;
+      position: relative;
+    }
+
+    .origami-shape {
+      width: 100%;
+      height: 100%;
+      animation: origamiFold 4.5s ease-in-out infinite;
+    }
+
+    @keyframes origamiFold {
+      0%, 100% {
+        transform: rotateY(0deg) scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: rotateY(180deg) scale(0.85);
+        opacity: 0.9;
+      }
+    }
+
+    /* Quote Display */
+    .quote-container {
+      max-width: 600px;
+      margin: 0 auto 2rem;
+      padding: 0 2rem;
+    }
+
+    .quote-text {
+      font-family: 'Crimson Pro', Georgia, serif;
+      font-size: 1.125rem;
+      line-height: 1.6;
+      font-style: italic;
+      color: #37474f;
+      margin-bottom: 0.5rem;
+      animation: quoteFade 1s ease-in;
+    }
+
+    @keyframes quoteFade {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .quote-attribution {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #78909c;
+      opacity: 0.75;
+    }
+
+    /* Stage Progress */
+    .stage-progress {
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 1px solid #eceff1;
+    }
+
+    .stage-indicator {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .stage-indicator span {
+      font-size: 0.875rem;
+      color: #546e7a;
+    }
+
+    .stage-name {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #42a5f5;
+      margin-bottom: 1.5rem;
+    }
+
+    /* Agent Cards */
+    .agent-cards {
+      display: flex;
+      justify-content: center;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+
+    .agent-card {
+      width: 120px;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 2px solid #e0e0e0;
+      background: #fafafa;
+      transition: all 0.3s;
+      position: relative;
+    }
+
+    .agent-card.completed {
+      border-color: #66bb6a;
+      background: #e8f5e9;
+    }
+
+    .agent-card.active {
+      border-color: #42a5f5;
+      background: #e3f2fd;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(66, 165, 245, 0.4); }
+      50% { transform: scale(1.02); box-shadow: 0 0 0 8px rgba(66, 165, 245, 0); }
+    }
+
+    .agent-card.queued {
+      border-color: #e0e0e0;
+      background: #fafafa;
+    }
+
+    .agent-icon {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .agent-name {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: #546e7a;
+    }
+
+    .agent-status {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #bdbdbd;
+    }
+
+    .agent-card.completed .agent-status {
+      background: #66bb6a;
+    }
+
+    .agent-card.active .agent-status {
+      background: #42a5f5;
+      animation: blink 1s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* Controls */
+    .mockup-controls {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+      z-index: 100;
+      max-width: 300px;
+    }
+
+    .mockup-controls h3 {
+      font-size: 1rem;
+      margin-bottom: 1rem;
+      color: #2c3e50;
+    }
+
+    .control-button {
+      width: 100%;
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      border: none;
+      border-radius: 6px;
+      background: #42a5f5;
+      color: white;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .control-button:hover {
+      background: #1e88e5;
+    }
+
+    .control-button.secondary {
+      background: #e0e0e0;
+      color: #546e7a;
+    }
+
+    .control-button.secondary:hover {
+      background: #bdbdbd;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .dashboard {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        display: none;
+      }
+
+      .mockup-controls {
+        bottom: 1rem;
+        right: 1rem;
+        max-width: 250px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .main-content {
+        padding: 1rem;
+      }
+
+      .research-execution {
+        padding: 2rem 1rem;
+      }
+
+      .agent-cards {
+        flex-wrap: wrap;
+      }
+
+      .agent-card {
+        width: 100px;
+      }
+    }
+
+    /* Dark Mode */
+    body.dark-mode {
+      background: #1a1a2e;
+    }
+
+    body.dark-mode .sidebar {
+      background: #16213e;
+    }
+
+    body.dark-mode .main-content {
+      background: #1a1a2e;
+    }
+
+    body.dark-mode .research-execution {
+      background: #263238;
+    }
+
+    body.dark-mode .page-header h1,
+    body.dark-mode .research-title {
+      color: #eceff1;
+    }
+
+    body.dark-mode .quote-text {
+      color: #cfd8dc;
+    }
+
+    body.dark-mode .agent-card {
+      background: #37474f;
+      border-color: #455a64;
+    }
+
+    body.dark-mode .agent-card.active {
+      background: #1e3a5f;
+      border-color: #42a5f5;
+    }
+
+    body.dark-mode .agent-card.completed {
+      background: #1b5e20;
+      border-color: #66bb6a;
+    }
+
+    body.dark-mode .mockup-controls {
+      background: #263238;
+    }
+
+    body.dark-mode .mockup-controls h3 {
+      color: #eceff1;
+    }
+  </style>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="dashboard">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <h2>🔬 TK9</h2>
+      <nav>
+        <div class="nav-item">📊 Dashboard</div>
+        <div class="nav-item active">🔍 New Research</div>
+        <div class="nav-item">📚 History</div>
+        <div class="nav-item">⚙️ Settings</div>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="page-header">
+        <h1>Research in Progress</h1>
+        <div class="breadcrumb">Dashboard / New Research / Execution</div>
+      </div>
+
+      <div class="research-execution">
+        <h2 class="research-title" id="researchTitle">The Impact of AI on Knowledge Work</h2>
+        <div class="research-meta">
+          Started at <span id="startTime">14:32:15</span> • Estimated completion: 3-5 minutes
+        </div>
+
+        <!-- Waiting Experience: Origami Animation + Quote -->
+        <div class="waiting-experience">
+          <!-- Origami Animation -->
+          <div class="origami-container">
+            <svg class="origami-shape" viewBox="0 0 200 200" id="origamiShape">
+              <!-- Origami Crane -->
+              <g id="crane">
+                <path d="M100,20 L150,100 L100,180 L50,100 Z" fill="#0EA5E9" opacity="0.9"/>
+                <path d="M100,20 L180,60 L150,100 L100,80 Z" fill="#0891B2" opacity="0.8"/>
+                <path d="M100,20 L20,60 L50,100 L100,80 Z" fill="#06B6D4" opacity="0.7"/>
+              </g>
+            </svg>
+          </div>
+
+          <!-- Quote Display -->
+          <div class="quote-container">
+            <blockquote class="quote-text" id="quoteText">
+              "The important thing is not to stop questioning. Curiosity has its own reason for existing."
+            </blockquote>
+            <div class="quote-attribution" id="quoteAuthor">— Albert Einstein</div>
+          </div>
+        </div>
+
+        <!-- Stage Progress -->
+        <div class="stage-progress">
+          <div class="stage-indicator">
+            <span>Stage <strong id="currentStage">2</strong> of 4</span>
+          </div>
+          <div class="stage-name" id="stageName">Planning & Methodology</div>
+
+          <!-- Agent Cards -->
+          <div class="agent-cards">
+            <div class="agent-card completed">
+              <div class="agent-status"></div>
+              <div class="agent-icon">🌐</div>
+              <div class="agent-name">Browser</div>
+            </div>
+            <div class="agent-card completed">
+              <div class="agent-status"></div>
+              <div class="agent-icon">✏️</div>
+              <div class="agent-name">Editor</div>
+            </div>
+            <div class="agent-card active">
+              <div class="agent-status"></div>
+              <div class="agent-icon">🔍</div>
+              <div class="agent-name">Researcher</div>
+            </div>
+            <div class="agent-card queued">
+              <div class="agent-status"></div>
+              <div class="agent-icon">✍️</div>
+              <div class="agent-name">Writer</div>
+            </div>
+            <div class="agent-card queued">
+              <div class="agent-status"></div>
+              <div class="agent-icon">📤</div>
+              <div class="agent-name">Publisher</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Mockup Controls -->
+  <div class="mockup-controls">
+    <h3>🎨 Mockup Controls</h3>
+    <button class="control-button" onclick="simulateStageProgress()">▶️ Simulate Progress</button>
+    <button class="control-button" onclick="changeQuote()">💬 Next Quote</button>
+    <button class="control-button" onclick="changeShape()">🎭 Next Shape</button>
+    <button class="control-button secondary" onclick="toggleDarkMode()">🌓 Dark Mode</button>
+  </div>
+
+  <script>
+    // Quote Library (Stage-specific)
+    const quotes = {
+      1: [ // Initial Research
+        { text: "I have no special talent. I am only passionately curious.", author: "Albert Einstein" },
+        { text: "Judge a man by his questions rather than his answers.", author: "Voltaire" },
+        { text: "Research is formalized curiosity. It is poking and prying with a purpose.", author: "Zora Neale Hurston" },
+        { text: "Somewhere, something incredible is waiting to be known.", author: "Carl Sagan" }
+      ],
+      2: [ // Planning
+        { text: "By failing to prepare, you are preparing to fail.", author: "Benjamin Franklin" },
+        { text: "Give me six hours to chop down a tree and I will spend the first four sharpening the axe.", author: "Abraham Lincoln" },
+        { text: "Strategy without tactics is the slowest route to victory.", author: "Sun Tzu" },
+        { text: "Well begun is half done.", author: "Aristotle" }
+      ],
+      3: [ // Parallel Research
+        { text: "The whole is greater than the sum of its parts.", author: "Aristotle" },
+        { text: "Science is organized knowledge. Wisdom is organized life.", author: "Immanuel Kant" },
+        { text: "The greatest enemy of knowledge is not ignorance, it is the illusion of knowledge.", author: "Stephen Hawking" },
+        { text: "Reading furnishes the mind only with materials of knowledge; it is thinking that makes what we read ours.", author: "John Locke" }
+      ],
+      4: [ // Writing
+        { text: "Writing is thinking. To write well is to think clearly. That's why it's so hard.", author: "David McCullough" },
+        { text: "Clear thinking becomes clear writing; one can't exist without the other.", author: "William Zinsser" },
+        { text: "If I had more time, I would have written a shorter letter.", author: "Blaise Pascal" },
+        { text: "The difference between the almost right word and the right word is really a large matter.", author: "Mark Twain" }
+      ]
+    };
+
+    // Color Palettes
+    const palettes = [
+      ['#0891B2', '#0EA5E9', '#06B6D4'], // Oceanic Blues
+      ['#059669', '#10B981', '#34D399'], // Forest Greens
+      ['#F97316', '#FB923C', '#FDBA74'], // Sunset Coral
+      ['#7C3AED', '#8B5CF6', '#A78BFA'], // Royal Purple
+    ];
+
+    // Shapes (simplified SVG definitions)
+    const shapes = [
+      { name: 'crane', svg: `
+        <path d="M100,20 L150,100 L100,180 L50,100 Z" fill="COLOR1" opacity="0.9"/>
+        <path d="M100,20 L180,60 L150,100 L100,80 Z" fill="COLOR2" opacity="0.8"/>
+        <path d="M100,20 L20,60 L50,100 L100,80 Z" fill="COLOR3" opacity="0.7"/>
+      `},
+      { name: 'book', svg: `
+        <rect x="60" y="40" width="80" height="120" fill="COLOR1" opacity="0.9"/>
+        <rect x="100" y="40" width="40" height="120" fill="COLOR2" opacity="0.8"/>
+        <line x1="80" y1="70" x2="120" y2="70" stroke="COLOR3" stroke-width="2"/>
+        <line x1="80" y1="90" x2="120" y2="90" stroke="COLOR3" stroke-width="2"/>
+        <line x1="80" y1="110" x2="120" y2="110" stroke="COLOR3" stroke-width="2"/>
+      `},
+      { name: 'lightbulb', svg: `
+        <circle cx="100" cy="80" r="40" fill="COLOR1" opacity="0.9"/>
+        <path d="M80,115 L80,145 L120,145 L120,115 Z" fill="COLOR2" opacity="0.8"/>
+        <line x1="100" y1="145" x2="100" y2="165" stroke="COLOR3" stroke-width="4"/>
+      `},
+      { name: 'telescope', svg: `
+        <rect x="40" y="90" width="120" height="20" fill="COLOR1" opacity="0.9" transform="rotate(-30 100 100)"/>
+        <circle cx="140" cy="60" r="15" fill="COLOR2" opacity="0.8"/>
+        <circle cx="60" cy="130" r="20" fill="COLOR3" opacity="0.7"/>
+      `}
+    ];
+
+    let currentStage = 2;
+    let currentQuoteIndex = 0;
+    let currentShapeIndex = 0;
+    let currentPaletteIndex = 0;
+
+    // Stage names
+    const stageNames = {
+      1: 'Initial Research - Discovery & Exploration',
+      2: 'Planning & Methodology',
+      3: 'Parallel Research - Depth & Synthesis',
+      4: 'Writing & Communication'
+    };
+
+    function simulateStageProgress() {
+      currentStage = (currentStage % 4) + 1;
+      document.getElementById('currentStage').textContent = currentStage;
+      document.getElementById('stageName').textContent = stageNames[currentStage];
+
+      // Update agent cards
+      const cards = document.querySelectorAll('.agent-card');
+      cards.forEach((card, index) => {
+        card.classList.remove('completed', 'active', 'queued');
+        if (index < currentStage) {
+          card.classList.add('completed');
+        } else if (index === currentStage) {
+          card.classList.add('active');
+        } else {
+          card.classList.add('queued');
+        }
+      });
+
+      // Change quote to match stage
+      changeQuote();
+    }
+
+    function changeQuote() {
+      const stageQuotes = quotes[currentStage];
+      currentQuoteIndex = (currentQuoteIndex + 1) % stageQuotes.length;
+      const quote = stageQuotes[currentQuoteIndex];
+
+      const quoteText = document.getElementById('quoteText');
+      const quoteAuthor = document.getElementById('quoteAuthor');
+
+      // Fade animation
+      quoteText.style.animation = 'none';
+      setTimeout(() => {
+        quoteText.textContent = `"${quote.text}"`;
+        quoteAuthor.textContent = `— ${quote.author}`;
+        quoteText.style.animation = 'quoteFade 1s ease-in';
+      }, 50);
+    }
+
+    function changeShape() {
+      currentShapeIndex = (currentShapeIndex + 1) % shapes.length;
+      currentPaletteIndex = (currentPaletteIndex + 1) % palettes.length;
+
+      const shape = shapes[currentShapeIndex];
+      const palette = palettes[currentPaletteIndex];
+
+      const svg = document.getElementById('origamiShape');
+      svg.innerHTML = shape.svg
+        .replace('COLOR1', palette[0])
+        .replace('COLOR2', palette[1])
+        .replace('COLOR3', palette[2]);
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark-mode');
+      localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+    }
+
+    // Initialize
+    window.onload = () => {
+      // Restore dark mode preference
+      if (localStorage.getItem('darkMode') === 'true') {
+        document.body.classList.add('dark-mode');
+      }
+
+      // Set initial time
+      const now = new Date();
+      document.getElementById('startTime').textContent = now.toLocaleTimeString();
+
+      // Auto-change quote every 10 seconds
+      setInterval(changeQuote, 10000);
+
+      // Auto-change shape every 4.5 seconds
+      setInterval(changeShape, 4500);
+    };
+  </script>
+</body>
+</html>

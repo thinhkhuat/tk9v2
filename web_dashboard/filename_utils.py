@@ -16,12 +16,12 @@ Date: 2025-11-02
 Status: Production Ready
 """
 
+import logging
+import re
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Tuple
-import re
-import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +30,18 @@ logger = logging.getLogger(__name__)
 # Enums for Type Safety
 # ============================================================================
 
+
 class FileType(Enum):
     """Supported file types in TK9 system"""
+
     PDF = "pdf"
     DOCX = "docx"
     MARKDOWN = "md"
+    DOC = "doc"
+    TXT = "txt"
+    JSON = "json"
+    XML = "xml"
+    HTML = "html"
     UNKNOWN = "unknown"
 
     @property
@@ -48,7 +55,12 @@ class FileType(Enum):
         mime_types = {
             FileType.PDF: "application/pdf",
             FileType.DOCX: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            FileType.DOC: "application/msword",
             FileType.MARKDOWN: "text/markdown",
+            FileType.TXT: "text/plain",
+            FileType.JSON: "application/json",
+            FileType.XML: "application/xml",
+            FileType.HTML: "text/html",
             FileType.UNKNOWN: "application/octet-stream",
         }
         return mime_types[self]
@@ -56,13 +68,14 @@ class FileType(Enum):
 
 class Language(Enum):
     """Supported languages in TK9 system"""
+
     ENGLISH = "en"
     VIETNAMESE = "vi"
     SPANISH = "es"
     FRENCH = "fr"
 
     @classmethod
-    def from_code(cls, code: Optional[str]) -> 'Language':
+    def from_code(cls, code: Optional[str]) -> "Language":
         """
         Parse language code with fallback to English.
 
@@ -86,6 +99,7 @@ class Language(Enum):
 # Structured Filename Representation
 # ============================================================================
 
+
 @dataclass(frozen=True)
 class ParsedFilename:
     """
@@ -105,6 +119,7 @@ class ParsedFilename:
         is_translated: True if filename has language suffix
         original_filename: Raw filename string
     """
+
     uuid: str
     language: Language
     file_type: FileType
@@ -162,6 +177,7 @@ class ParsedFilename:
 # Filename Parser - Single Source of Truth
 # ============================================================================
 
+
 class FilenameParser:
     """
     Canonical parser for TK9 UUID-based filenames.
@@ -179,10 +195,11 @@ class FilenameParser:
     # - uuid: 32 hex characters
     # - lang: optional 2-3 letter language code after underscore
     # - ext: file extension
-    PATTERN = re.compile(r'^([a-f0-9]{32})(?:_([a-z]{2,3}))?\.([a-z0-9]+)$', re.IGNORECASE)
+    PATTERN = re.compile(r"^([a-f0-9]{32})(?:_([a-z]{2,3}))?\.([a-z0-9]+)$", re.IGNORECASE)
 
     # Supported file extensions (whitelist)
-    SUPPORTED_EXTENSIONS = {'.pdf', '.docx', '.md'}
+    # Single source of truth for file discovery across backend and UI
+    SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".md", ".txt", ".html", ".json"}
 
     @classmethod
     def parse(cls, filename: str) -> Optional[ParsedFilename]:
@@ -239,7 +256,7 @@ class FilenameParser:
             language=language,
             file_type=file_type,
             is_translated=bool(lang_code),
-            original_filename=filename
+            original_filename=filename,
         )
 
     @classmethod
@@ -449,6 +466,7 @@ class FilenameParser:
 # Security Validation
 # ============================================================================
 
+
 class SecurePathValidator:
     """
     Centralized security validation for file paths.
@@ -513,7 +531,7 @@ class SecurePathValidator:
             return False
 
         # Block dangerous path characters
-        dangerous_chars = ['/', '\\', '..']
+        dangerous_chars = ["/", "\\", ".."]
         return not any(char in filename for char in dangerous_chars)
 
     @staticmethod
@@ -551,11 +569,7 @@ class SecurePathValidator:
         return True
 
     @staticmethod
-    def resolve_safe_path(
-        base_dir: Path,
-        session_id: str,
-        filename: str
-    ) -> Optional[Path]:
+    def resolve_safe_path(base_dir: Path, session_id: str, filename: str) -> Optional[Path]:
         """
         Resolve file path with comprehensive security validation.
 
@@ -621,6 +635,7 @@ class SecurePathValidator:
 # Convenience Functions (Backward Compatibility)
 # ============================================================================
 
+
 def parse_filename(filename: str) -> Optional[ParsedFilename]:
     """Convenience wrapper for FilenameParser.parse()"""
     return FilenameParser.parse(filename)
@@ -644,3 +659,31 @@ def to_friendly_name(filename: str) -> str:
 def validate_safe_path(base_dir: Path, session_id: str, filename: str) -> Optional[Path]:
     """Convenience wrapper for SecurePathValidator.resolve_safe_path()"""
     return SecurePathValidator.resolve_safe_path(base_dir, session_id, filename)
+
+
+def build_download_url(session_id: str, filename: str) -> str:
+    """
+    Build standardized download URL for file access.
+
+    This is the SINGLE SOURCE OF TRUTH for download URL construction.
+    Used by WebSocket events, file managers, and API responses.
+
+    Args:
+        session_id: Research session UUID
+        filename: File name (can be UUID format or friendly name)
+
+    Returns:
+        Download URL path (e.g., "/download/{session_id}/{filename}")
+
+    Examples:
+        >>> build_download_url("abc123", "report.pdf")
+        '/download/abc123/report.pdf'
+
+        >>> build_download_url("def456", "72320175ea5448e7_vi.pdf")
+        '/download/def456/72320175ea5448e7_vi.pdf'
+
+    Note:
+        Frontend uses extractFilePathFromDownloadUrl() to convert back:
+        "/download/{session_id}/{filename}" → "{session_id}/{filename}"
+    """
+    return f"/download/{session_id}/{filename}"

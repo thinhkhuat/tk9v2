@@ -5,7 +5,13 @@ import { useSessionsStore, type ResearchSession } from '@/stores/sessionsStore'
 import { useSessionStore } from '@/stores/sessionStore'
 import { formatDate, formatAbsoluteDate, formatFileSize, getStatusColor } from '@/utils/formatters'
 import WaitingExperience from './WaitingExperience/WaitingExperience.vue'
+import FileList from './FileList.vue'
+import FilePreviewModal from './FilePreviewModal.vue'
+import LogViewer from './LogViewer.vue'
+import ConfirmDialog, { type ConfirmVariant } from './ConfirmDialog.vue'
 import type { ResearchStage } from './WaitingExperience/types'
+import type { FileGeneratedPayload } from '@/types/events'
+import { api, triggerFileDownload } from '@/services/api'
 
 const props = defineProps<{
   session: ResearchSession
@@ -179,6 +185,29 @@ function handleResearchError(error: Error) {
   activeTab.value = 'logs'
 }
 
+/**
+ * Handle "View Full Session" click
+ * Reconstructs final state from historical session in the modal
+ */
+async function handleViewFullSession() {
+  try {
+    console.log(`📊 Reconstructing state for session ${props.session.id}...`)
+
+    // Disconnect any existing WebSocket connection
+    sessionStore.disconnect()
+
+    // Rehydrate store with historical session state
+    await sessionStore.rehydrate(props.session.id)
+
+    console.log('✅ Session state reconstructed successfully')
+
+    // Stay in modal - let WaitingExperience, FileList, LogViewer display the state
+  } catch (error) {
+    console.error('❌ Failed to reconstruct session state:', error)
+    alert('Failed to load session details. Please try again.')
+  }
+}
+
 // ============================================================================
 // WebSocket Connection Management
 // ============================================================================
@@ -192,6 +221,10 @@ watch(
     if (isOpen && showWaitingExperience.value) {
       // Connect to WebSocket for real-time updates
       sessionStore.connect(props.session.id)
+    } else if (isOpen && !showWaitingExperience.value) {
+      // Historical/completed session: auto-rehydrate to load files list
+      // Avoid requiring manual "View Full Session" click
+      sessionStore.rehydrate(props.session.id)
     } else if (!isOpen) {
       // Disconnect when modal closes
       sessionStore.disconnect()
@@ -209,19 +242,44 @@ onUnmounted(() => {
 
 // Actions
 async function handleDuplicate() {
-  const newSessionId = await store.duplicateSession(props.session.id)
-  if (newSessionId) {
+  try {
+    console.log(`🔄 Duplicating and auto-starting session ${props.session.id}...`)
+
+    // Extract subject and language from current session
+    const subject = props.session.title.replace(' (Copy)', '') // Remove " (Copy)" suffix if present
+    const language = props.session.language || 'vi'
+
+    // Submit new research (creates new session and auto-starts)
+    const response = await api.submitResearch(subject, language)
+
+    console.log(`✅ New research started: ${response.session_id}`)
+
+    // Close modal
     emit('close')
-    router.push(`/sessions/${newSessionId}`)
+
+    // Navigate to dashboard (home page) where user can see the new session starting
+    router.push('/')
+  } catch (error) {
+    console.error('❌ Failed to duplicate and start research:', error)
+    alert('Failed to start new research. Please try again.')
   }
 }
 
 async function handleArchive() {
-  if (confirm(`Archive session "${props.session.title}"?`)) {
-    await store.archiveSession(props.session.id)
-    emit('update')
-    emit('close')
+  // Show confirmation dialog
+  confirmDialogConfig.value = {
+    title: 'Archive Session',
+    message: `Are you sure you want to archive "${props.session.title}"? You can restore it later.`,
+    confirmLabel: 'Archive',
+    variant: 'warning',
+    onConfirm: async () => {
+      await store.archiveSession(props.session.id)
+      emit('update')
+      emit('close')
+      showConfirmDialog.value = false
+    }
   }
+  showConfirmDialog.value = true
 }
 
 async function handleRestore() {
@@ -231,11 +289,20 @@ async function handleRestore() {
 }
 
 async function handleDelete() {
-  if (confirm(`Permanently delete session "${props.session.title}"? This cannot be undone!`)) {
-    await store.deleteSession(props.session.id)
-    emit('update')
-    emit('close')
+  // Show confirmation dialog
+  confirmDialogConfig.value = {
+    title: 'Delete Session Permanently',
+    message: `Are you sure you want to permanently delete "${props.session.title}"? This action cannot be undone!`,
+    confirmLabel: 'Delete Permanently',
+    variant: 'danger',
+    onConfirm: async () => {
+      await store.deleteSession(props.session.id)
+      emit('update')
+      emit('close')
+      showConfirmDialog.value = false
+    }
   }
+  showConfirmDialog.value = true
 }
 
 function handleClose() {
@@ -256,19 +323,84 @@ function handleKeydown(event: KeyboardEvent) {
   }
 }
 
-// File type icon helper (for Files tab real-time display)
-function getFileIcon(fileType: string | undefined | null): string {
-  const icons: Record<string, string> = {
-    pdf: '📄',
-    docx: '📝',
-    md: '📋',
-    txt: '📃',
-    json: '{ }',
-    xml: '</>',
-    html: '🌐'
+// ============================================================================
+// File Actions (Download & Preview)
+// ============================================================================
+
+// Preview modal state
+const showPreviewModal = ref(false)
+const fileToPreview = ref<FileGeneratedPayload | null>(null)
+
+// ============================================================================
+// Confirm Dialog State
+// ============================================================================
+
+const showConfirmDialog = ref(false)
+const confirmDialogConfig = ref<{
+  title: string
+  message: string
+  confirmLabel: string
+  variant: ConfirmVariant
+  onConfirm: () => void
+}>({
+  title: '',
+  message: '',
+  confirmLabel: 'Confirm',
+  variant: 'warning',
+  onConfirm: () => {}
+})
+
+// Download file handler (same as FileExplorer)
+async function downloadFile(file: FileGeneratedPayload) {
+  if (!props.session.id) return
+
+  try {
+    console.log(`Downloading ${file.filename}...`)
+
+    const blob = await api.downloadFile(props.session.id, file.filename)
+
+    // Save with backend-provided friendly name (with fallback)
+    const downloadName = file.friendly_name || file.filename
+    triggerFileDownload(blob, downloadName)
+  } catch (error) {
+    console.error('Download failed:', error)
+    alert(`Failed to download ${file.filename}`)
   }
-  if (!fileType) return '📎'
-  return icons[fileType.toLowerCase()] || '📎'
+}
+
+// Preview file handler (same as FileExplorer)
+function previewFile(file: FileGeneratedPayload) {
+  fileToPreview.value = file
+  showPreviewModal.value = true
+}
+
+// Close preview modal
+function closePreview() {
+  showPreviewModal.value = false
+  // Clear after animation
+  setTimeout(() => {
+    fileToPreview.value = null
+  }, 300)
+}
+
+// ============================================================================
+// Logs Tab - Download Functionality
+// ============================================================================
+
+// Check if logs are available
+const hasLogs = computed(() => sessionStore.events.some(e => e.event_type === 'log'))
+
+// Download logs file
+async function downloadLogs() {
+  try {
+    console.log(`Downloading logs for session ${props.session.id}...`)
+
+    const blob = await api.downloadSessionLogs(props.session.id)
+    triggerFileDownload(blob, `${props.session.id}_session.log`)
+  } catch (error) {
+    console.error('Failed to download logs:', error)
+    alert('Failed to download logs. The log file may not exist yet.')
+  }
 }
 </script>
 
@@ -460,59 +592,29 @@ function getFileIcon(fileType: string | undefined | null): string {
 
             <!-- Files Tab -->
             <div v-if="activeTab === 'files'">
-              <!-- Real-time files display from sessionStore -->
-              <div v-if="sessionStore.totalFilesGenerated === 0" class="text-center py-12">
-                <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
-                <h3 class="text-lg font-semibold text-gray-700 mb-2">No Files Generated Yet</h3>
-                <p class="text-gray-500">
-                  Files will appear here in real-time as the research progresses
-                </p>
-              </div>
-
-              <!-- Real-time file list (appears as files are generated!) -->
-              <div v-else class="space-y-4">
+              <div v-if="sessionStore.totalFilesGenerated > 0" class="space-y-4">
                 <div class="flex justify-between items-center mb-4">
                   <h3 class="text-lg font-semibold text-gray-800">
-                    Generated Files ({{ sessionStore.totalFilesGenerated }})
+                    Generated Files ({{ session.file_count || 0 }})
                   </h3>
-                  <router-link
-                    :to="`/sessions/${session.id}`"
-                    class="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                    @click="handleClose"
+                  <button
+                    @click="handleViewFullSession"
+                    class="text-sm text-blue-600 hover:text-blue-700 font-medium underline"
                   >
                     View Full Session →
-                  </router-link>
+                  </button>
                 </div>
 
-                <!-- File list with real-time updates -->
+                <!-- DRY: Using shared FileList component with download/preview -->
                 <div class="space-y-2 max-h-96 overflow-y-auto">
-                  <div
-                    v-for="file in sessionStore.files"
-                    :key="file.file_id"
-                    class="bg-gray-50 rounded-lg p-3 flex items-center justify-between hover:bg-gray-100 transition-colors"
-                  >
-                    <div class="flex items-center gap-3 flex-1 min-w-0">
-                      <span class="text-2xl">
-                        {{ getFileIcon(file.file_type) }}
-                      </span>
-                      <div class="min-w-0 flex-1">
-                        <div class="font-medium text-sm truncate" :title="file.filename">
-                          {{ file.filename }}
-                        </div>
-                        <div class="text-xs text-gray-500">
-                          {{ formatFileSize(file.size_bytes) }}
-                        </div>
-                      </div>
-                    </div>
-                    <span
-                      v-if="file.language"
-                      class="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded uppercase ml-2"
-                    >
-                      {{ file.language }}
-                    </span>
-                  </div>
+                  <FileList
+                    :files="sessionStore.files"
+                    variant="detailed"
+                    :show-actions="true"
+                    empty-message="No files generated yet"
+                    @preview="previewFile"
+                    @download="downloadFile"
+                  />
                 </div>
 
                 <!-- Completion notice -->
@@ -525,17 +627,49 @@ function getFileIcon(fileType: string | undefined | null): string {
                   </p>
                 </div>
               </div>
+
+              <!-- Empty state with custom SVG -->
+              <div v-else class="text-center py-12">
+                <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                <h3 class="text-lg font-semibold text-gray-700 mb-2">No Files Generated Yet</h3>
+                <p class="text-gray-500">
+                  Files will appear here in real-time as the research progresses
+                </p>
+              </div>
             </div>
 
             <!-- Logs Tab -->
-            <div v-if="activeTab === 'logs'">
-              <div class="text-center py-12">
+            <div v-if="activeTab === 'logs'" class="space-y-4">
+              <!-- Download Logs Button -->
+              <div class="flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-800">Execution Logs</h3>
+                <button
+                  @click="downloadLogs"
+                  class="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded flex items-center gap-2 transition-colors"
+                  title="Download complete log file"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Download Logs
+                </button>
+              </div>
+
+              <!-- LogViewer Component -->
+              <div v-if="hasLogs || showWaitingExperience" class="max-h-96 overflow-hidden">
+                <LogViewer />
+              </div>
+
+              <!-- Empty State -->
+              <div v-else class="text-center py-12">
                 <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <h3 class="text-lg font-semibold text-gray-700 mb-2">Execution Logs</h3>
+                <h3 class="text-lg font-semibold text-gray-700 mb-2">No Logs Available</h3>
                 <p class="text-gray-500">
-                  Real-time execution logs are available during active research sessions
+                  Logs will appear here during active research sessions
                 </p>
               </div>
             </div>
@@ -607,6 +741,25 @@ function getFileIcon(fileType: string | undefined | null): string {
         </div>
       </div>
     </Transition>
+
+    <!-- File Preview Modal (same as FileExplorer) -->
+    <FilePreviewModal
+      :file="fileToPreview"
+      :show="showPreviewModal"
+      :session-id="session.id"
+      @close="closePreview"
+    />
+
+    <!-- Confirm Dialog -->
+    <ConfirmDialog
+      :is-open="showConfirmDialog"
+      :title="confirmDialogConfig.title"
+      :message="confirmDialogConfig.message"
+      :confirm-label="confirmDialogConfig.confirmLabel"
+      :variant="confirmDialogConfig.variant"
+      @confirm="confirmDialogConfig.onConfirm"
+      @cancel="showConfirmDialog = false"
+    />
   </Teleport>
 </template>
 

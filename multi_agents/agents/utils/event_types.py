@@ -7,9 +7,8 @@ These types provide static analysis, autocomplete support, and serve as document
 Schema follows envelope-based event pattern for extensibility.
 """
 
-from typing import TypedDict, Literal, Optional, Dict, Any
 from datetime import datetime
-
+from typing import Any, Dict, Literal, Optional, TypedDict
 
 # ============================================================================
 # Agent Status Values
@@ -29,6 +28,7 @@ Possible agent status values:
 # Error Structure
 # ============================================================================
 
+
 class AgentError(TypedDict, total=False):
     """
     Structured error information when agent status is 'error'
@@ -38,6 +38,7 @@ class AgentError(TypedDict, total=False):
         message: Human-readable error description
         details: Additional error context (stack trace, request data, etc.)
     """
+
     code: str
     message: str
     details: Optional[Dict[str, Any]]
@@ -46,6 +47,7 @@ class AgentError(TypedDict, total=False):
 # ============================================================================
 # Agent Update Payload
 # ============================================================================
+
 
 class AgentUpdatePayload(TypedDict, total=False):
     """
@@ -63,6 +65,7 @@ class AgentUpdatePayload(TypedDict, total=False):
         data: Structured data produced by agent (URLs, document text, etc.)
         error: Error details if status is 'error'
     """
+
     # Required fields
     agent_id: str
     agent_name: str
@@ -80,6 +83,7 @@ class AgentUpdatePayload(TypedDict, total=False):
 # Event Envelope
 # ============================================================================
 
+
 class AgentUpdateEvent(TypedDict):
     """
     Top-level event envelope for agent updates
@@ -95,6 +99,7 @@ class AgentUpdateEvent(TypedDict):
         type: Always "agent_update" for agent status/progress events
         payload: AgentUpdatePayload with all agent-specific data
     """
+
     type: Literal["agent_update"]
     payload: AgentUpdatePayload
 
@@ -103,6 +108,7 @@ class AgentUpdateEvent(TypedDict):
 # Helper Functions
 # ============================================================================
 
+
 def create_agent_update_event(
     agent_id: str,
     agent_name: str,
@@ -110,7 +116,7 @@ def create_agent_update_event(
     message: str,
     progress: Optional[int] = None,
     data: Optional[Dict[str, Any]] = None,
-    error: Optional[AgentError] = None
+    error: Optional[AgentError] = None,
 ) -> AgentUpdateEvent:
     """
     Factory function to create a properly structured agent update event
@@ -142,7 +148,7 @@ def create_agent_update_event(
         "agent_name": agent_name,
         "status": status,
         "message": message,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
     }
 
     # Add optional fields only if provided
@@ -153,7 +159,4 @@ def create_agent_update_event(
     if error is not None:
         payload["error"] = error
 
-    return {
-        "type": "agent_update",
-        "payload": payload
-    }
+    return {"type": "agent_update", "payload": payload}

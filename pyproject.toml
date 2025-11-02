@@ -1,0 +1,17 @@
+[tool.ruff]
+line-length = 100
+exclude = [
+    ".git",
+    "__pycache__",
+    "venv",
+    ".venv",
+    "node_modules",
+    "migrations",
+    "frontend_poc",
+    "ARCHIVE",
+    ".env",
+    "*.pyc",
+]
+
+[tool.ruff.lint]
+ignore = ["E402"]

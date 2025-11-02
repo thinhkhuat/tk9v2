@@ -1,0 +1,75 @@
+# RegistrationModal.vue Test Documentation
+
+**Status**: Documented (Vitest setup pending - Story 1.1 review finding)
+
+## Test Cases
+
+### AC2: Modal Display
+- [ ] Modal opens when `show` prop is true
+- [ ] Modal closes when clicking backdrop
+- [ ] Modal closes when clicking close button
+- [ ] Modal emits 'close' event on close
+
+### AC3: Email Validation (RFC 5322)
+- [ ] Valid email passes validation: `user@example.com`
+- [ ] Invalid email rejected: `user@` (no domain)
+- [ ] Invalid email rejected: `@example.com` (no username)
+- [ ] Invalid email rejected: `user@.com` (invalid domain)
+- [ ] Invalid email rejected: `user@domain` (no TLD)
+- [ ] Validation error message displays below field
+- [ ] Validation clears on input
+
+### AC4: Password Validation
+- [ ] Valid password passes: `Test123!` (8+ chars, uppercase, lowercase, number)
+- [ ] Invalid password rejected: `test123` (no uppercase)
+- [ ] Invalid password rejected: `TEST123` (no lowercase)
+- [ ] Invalid password rejected: `TestTest` (no number)
+- [ ] Invalid password rejected: `Test1` (less than 8 characters)
+- [ ] Real-time indicators update (checkmarks show/hide)
+- [ ] Password visibility toggle works
+
+### AC6: Registration Success
+- [ ] Success message displays after registration
+- [ ] Toast notification shown
+- [ ] Modal auto-closes after 2 seconds
+- [ ] `registration-success` event emitted
+
+### Error Handling
+- [ ] "Email already exists" error displays correctly
+- [ ] Network error displays generic message
+- [ ] Loading state prevents multiple submissions
+- [ ] Form disabled during loading
+
+### Navigation
+- [ ] "Sign In" link emits `show-login` event
+- [ ] All form fields required
+- [ ] Submit button disabled when form invalid
+
+## Implementation Pattern
+
+```typescript
+import { describe, it, expect, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import RegistrationModal from './RegistrationModal.vue'
+
+describe('RegistrationModal', () => {
+  it('validates email using RFC 5322', async () => {
+    const wrapper = mount(RegistrationModal, {
+      props: { show: true }
+    })
+
+    await wrapper.find('#email').setValue('user@')
+    await wrapper.find('#email').trigger('blur')
+
+    expect(wrapper.text()).toContain('valid email address')
+  })
+
+  // ... more tests
+})
+```
+
+## Notes
+- Mock `useAuthStore` for registration tests
+- Mock `useToast` for toast notifications
+- Use `@vue/test-utils` for component mounting
+- Test both validation logic and UI feedback

@@ -61,30 +61,25 @@ function toggleDetails() {
 
 <template>
   <div
-    class="p-3 rounded-lg border-2 transition-all duration-300 w-40 text-center cursor-pointer hover:shadow-md"
+    class="p-1.5 rounded border-2 transition-all duration-300 w-28 text-center cursor-pointer hover:shadow"
     :class="statusStyles.bgColor"
     @click="toggleDetails"
   >
     <!-- Workflow Step Name -->
-    <h3 class="font-bold text-sm truncate" :class="statusStyles.textColor">
+    <h3 class="font-semibold text-xs truncate" :class="statusStyles.textColor">
       {{ displayName }}
     </h3>
 
     <!-- Status Badge -->
-    <div class="text-xs capitalize mt-1" :class="statusStyles.textColor">
+    <div class="text-[10px] capitalize mt-0.5" :class="statusStyles.textColor">
       {{ statusStyles.icon }} {{ agent.status }}
     </div>
 
     <!-- Expandable Details -->
-    <div v-if="isExpanded" class="mt-3 pt-3 border-t border-gray-300">
-      <p class="text-xs text-left" :class="statusStyles.textColor">
+    <div v-if="isExpanded" class="mt-2 pt-2 border-t border-gray-300">
+      <p class="text-[10px] text-left" :class="statusStyles.textColor">
         {{ agent.message }}
       </p>
-    </div>
-
-    <!-- Click to expand hint -->
-    <div v-if="!isExpanded" class="text-xs mt-2 text-gray-400">
-      Click for details
     </div>
   </div>
 </template>

@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TK9 - Color Theme Visualizer</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      padding: 2rem;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: #2c3e50;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      font-size: 1.125rem;
+      color: #546e7a;
+      font-weight: 400;
+    }
+
+    .palette-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 2rem;
+      margin-bottom: 3rem;
+    }
+
+    .palette-card {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .palette-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    }
+
+    .palette-name {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+
+    .color-swatches {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      justify-content: center;
+    }
+
+    .swatch {
+      width: 60px;
+      height: 60px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      position: relative;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .swatch:hover {
+      transform: scale(1.1);
+    }
+
+    .swatch:hover::after {
+      content: attr(data-hex);
+      position: absolute;
+      bottom: -30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      white-space: nowrap;
+      z-index: 10;
+    }
+
+    .preview-shape {
+      width: 120px;
+      height: 120px;
+      margin: 1rem auto;
+      animation: origamiFold 4s ease-in-out infinite;
+    }
+
+    @keyframes origamiFold {
+      0%, 100% {
+        transform: rotateY(0deg) scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: rotateY(180deg) scale(0.85);
+        opacity: 0.9;
+      }
+    }
+
+    .controls {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .control-group label {
+      font-weight: 500;
+      color: #546e7a;
+      min-width: 150px;
+    }
+
+    button {
+      background: #409eff;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #337ecc;
+    }
+
+    .info-box {
+      background: #e3f2fd;
+      border-left: 4px solid #2196f3;
+      padding: 1rem;
+      border-radius: 6px;
+      margin-top: 1rem;
+    }
+
+    .info-box p {
+      color: #1565c0;
+      line-height: 1.6;
+      margin-bottom: 0.5rem;
+    }
+
+    .info-box p:last-child {
+      margin-bottom: 0;
+    }
+
+    footer {
+      text-align: center;
+      color: #78909c;
+      font-size: 0.875rem;
+      margin-top: 3rem;
+      padding-top: 2rem;
+      border-top: 1px solid #cfd8dc;
+    }
+
+    /* Dark mode toggle */
+    body.dark-mode {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    }
+
+    body.dark-mode .palette-card,
+    body.dark-mode .controls {
+      background: #263238;
+    }
+
+    body.dark-mode h1,
+    body.dark-mode .palette-name {
+      color: #eceff1;
+    }
+
+    body.dark-mode .subtitle,
+    body.dark-mode .control-group label {
+      color: #b0bec5;
+    }
+
+    body.dark-mode .info-box {
+      background: #1e3a5f;
+      border-left-color: #42a5f5;
+    }
+
+    body.dark-mode .info-box p {
+      color: #90caf9;
+    }
+
+    body.dark-mode footer {
+      color: #78909c;
+      border-top-color: #37474f;
+    }
+
+    .mode-toggle {
+      position: fixed;
+      top: 2rem;
+      right: 2rem;
+      z-index: 100;
+    }
+
+    @media (max-width: 768px) {
+      .palette-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .control-group {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .mode-toggle {
+        top: 1rem;
+        right: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <button class="mode-toggle" onclick="toggleDarkMode()">🌓 Toggle Dark Mode</button>
+
+  <div class="container">
+    <header>
+      <h1>TK9 Color Theme Visualizer</h1>
+      <p class="subtitle">20 Curated Color Palettes for Origami Animation System</p>
+    </header>
+
+    <div class="controls">
+      <div class="control-group">
+        <label>Animation Speed:</label>
+        <button onclick="setAnimationSpeed('slow')">Slow (6s)</button>
+        <button onclick="setAnimationSpeed('medium')">Medium (4s)</button>
+        <button onclick="setAnimationSpeed('fast')">Fast (3s)</button>
+      </div>
+
+      <div class="info-box">
+        <p><strong>Usage Guide:</strong></p>
+        <p>• Each palette contains 2-3 harmonious colors for origami shapes</p>
+        <p>• Hover over color swatches to view hex codes</p>
+        <p>• Palettes rotate during research execution (3-6 second intervals)</p>
+        <p>• All palettes maintain WCAG AA contrast for accompanying quote text</p>
+      </div>
+    </div>
+
+    <div class="palette-grid" id="paletteGrid"></div>
+
+    <footer>
+      <p><strong>TK9 Deep Research Project</strong> - UX Design Specification</p>
+      <p>Created using BMad Method - Create UX Design Workflow v1.0</p>
+      <p>© 2025 TK9. For internal use only.</p>
+    </footer>
+  </div>
+
+  <script>
+    const palettes = [
+      { name: 'Oceanic Blues', colors: ['#0891B2', '#0EA5E9', '#06B6D4'] },
+      { name: 'Forest Greens', colors: ['#059669', '#10B981', '#34D399'] },
+      { name: 'Sunset Coral', colors: ['#F97316', '#FB923C', '#FDBA74'] },
+      { name: 'Royal Purple', colors: ['#7C3AED', '#8B5CF6', '#A78BFA'] },
+      { name: 'Cherry Blossom', colors: ['#EC4899', '#F472B6', '#F9A8D4'] },
+      { name: 'Amber Gold', colors: ['#D97706', '#F59E0B', '#FBBF24'] },
+      { name: 'Sky Blue', colors: ['#0284C7', '#0EA5E9', '#38BDF8'] },
+      { name: 'Emerald Jewel', colors: ['#047857', '#059669', '#10B981'] },
+      { name: 'Lavender Dream', colors: ['#9333EA', '#A855F7', '#C084FC'] },
+      { name: 'Rose Garden', colors: ['#E11D48', '#F43F5E', '#FB7185'] },
+      { name: 'Teal Ocean', colors: ['#0D9488', '#14B8A6', '#2DD4BF'] },
+      { name: 'Indigo Night', colors: ['#4F46E5', '#6366F1', '#818CF8'] },
+      { name: 'Crimson Fire', colors: ['#DC2626', '#EF4444', '#F87171'] },
+      { name: 'Lime Fresh', colors: ['#65A30D', '#84CC16', '#A3E635'] },
+      { name: 'Violet Dusk', colors: ['#7E22CE', '#9333EA', '#A855F7'] },
+      { name: 'Orange Burst', colors: ['#EA580C', '#F97316', '#FB923C'] },
+      { name: 'Cyan Wave', colors: ['#0891B2', '#06B6D4', '#22D3EE'] },
+      { name: 'Pink Petal', colors: ['#DB2777', '#EC4899', '#F472B6'] },
+      { name: 'Emerald Forest', colors: ['#047857', '#059669', '#10B981'] },
+      { name: 'Cobalt Deep', colors: ['#1E40AF', '#2563EB', '#3B82F6'] }
+    ];
+
+    function renderPalettes() {
+      const grid = document.getElementById('paletteGrid');
+      grid.innerHTML = '';
+
+      palettes.forEach(palette => {
+        const card = document.createElement('div');
+        card.className = 'palette-card';
+
+        const name = document.createElement('div');
+        name.className = 'palette-name';
+        name.textContent = palette.name;
+
+        const swatches = document.createElement('div');
+        swatches.className = 'color-swatches';
+
+        palette.colors.forEach(color => {
+          const swatch = document.createElement('div');
+          swatch.className = 'swatch';
+          swatch.style.backgroundColor = color;
+          swatch.setAttribute('data-hex', color);
+          swatch.onclick = () => copyToClipboard(color);
+          swatches.appendChild(swatch);
+        });
+
+        const shape = createPreviewShape(palette.colors[0], palette.colors[1]);
+
+        card.appendChild(name);
+        card.appendChild(swatches);
+        card.appendChild(shape);
+
+        grid.appendChild(card);
+      });
+    }
+
+    function createPreviewShape(color1, color2) {
+      const container = document.createElement('div');
+      container.className = 'preview-shape';
+
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 200 200');
+      svg.style.width = '100%';
+      svg.style.height = '100%';
+
+      // Simple origami crane preview
+      const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path1.setAttribute('d', 'M100,20 L150,100 L100,180 L50,100 Z');
+      path1.setAttribute('fill', color1);
+      path1.setAttribute('opacity', '0.9');
+
+      const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path2.setAttribute('d', 'M100,20 L180,60 L150,100 L100,80 Z');
+      path2.setAttribute('fill', color2);
+      path2.setAttribute('opacity', '0.8');
+
+      svg.appendChild(path1);
+      svg.appendChild(path2);
+      container.appendChild(svg);
+
+      return container;
+    }
+
+    function setAnimationSpeed(speed) {
+      const shapes = document.querySelectorAll('.preview-shape');
+      let duration;
+
+      switch(speed) {
+        case 'slow': duration = '6s'; break;
+        case 'medium': duration = '4s'; break;
+        case 'fast': duration = '3s'; break;
+      }
+
+      shapes.forEach(shape => {
+        shape.style.animation = `origamiFold ${duration} ease-in-out infinite`;
+      });
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark-mode');
+      localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+    }
+
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        // Visual feedback could be added here
+        console.log('Copied:', text);
+      });
+    }
+
+    // Initialize
+    window.onload = () => {
+      renderPalettes();
+
+      // Restore dark mode preference
+      if (localStorage.getItem('darkMode') === 'true') {
+        document.body.classList.add('dark-mode');
+      }
+    };
+  </script>
+</body>
+</html>

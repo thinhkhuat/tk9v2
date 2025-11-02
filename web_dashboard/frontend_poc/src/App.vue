@@ -1,181 +1,105 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useSessionStore } from './stores/sessionStore'
-import ProgressTracker from './components/ProgressTracker.vue'
-import LogViewer from './components/LogViewer.vue'
-import FileExplorer from './components/FileExplorer.vue'
-import AppSkeletonLoader from './components/AppSkeletonLoader.vue'
-import ErrorMessage from './components/ErrorMessage.vue'
-import AgentFlow from './components/AgentFlow.vue' // Phase 4
+import { useAuthStore } from '@/stores/authStore'
+import AnonymousSessionBadge from './components/auth/AnonymousSessionBadge.vue'
 
-const store = useSessionStore()
+const authStore = useAuthStore()
+const isAuthReady = ref(false)
+const authError = ref<string | null>(null)
 
-// Form state
-const researchSubject = ref('')
-const researchLanguage = ref('vi')
-
-// Check for existing session on mount (Phase 3: Enhanced with proper loading)
-onMounted(() => {
-  const savedSessionId = localStorage.getItem('tk9_session_id')
-  if (savedSessionId) {
-    console.log(`Re-hydrating session: ${savedSessionId}`)
-    store.rehydrate(savedSessionId)
-  } else {
-    // No session to rehydrate - initialize fresh
-    store.initializeNew()
+// Initialize authentication before rendering app
+onMounted(async () => {
+  try {
+    console.log('[App] Initializing authentication...')
+    await authStore.initializeAuth()
+    isAuthReady.value = true
+    console.log('[App] Authentication ready')
+  } catch (error) {
+    console.error('[App] Authentication initialization failed:', error)
+    authError.value = error instanceof Error ? error.message : 'Authentication failed'
   }
 })
-
-async function submitResearch() {
-  if (!researchSubject.value.trim()) {
-    store.appError = 'Please enter a research subject'
-    return
-  }
-
-  // Call centralized store action (Phase 3: refactored)
-  await store.startNewSession(researchSubject.value, researchLanguage.value)
-
-  // Clear form on success
-  if (!store.appError) {
-    researchSubject.value = ''
-  }
-}
-
-function newResearch() {
-  store.reset()
-  localStorage.removeItem('tk9_session_id')
-}
-
-function handleRetry() {
-  // Clear error and allow user to try again
-  store.appError = null
-}
 </script>
 
 <template>
-  <div class="app min-h-screen bg-gray-50">
-    <!-- Header -->
-    <header class="bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg">
-      <div class="container mx-auto px-4 py-6">
-        <h1 class="text-4xl font-bold">🎯 TK9 Deep Research Dashboard</h1>
-        <p class="text-purple-100 mt-2">Real-time multi-agent research monitoring</p>
+  <div class="app min-h-screen bg-gray-50 flex flex-col">
+    <!-- Loading Screen (while auth initializes) -->
+    <div v-if="!isAuthReady && !authError" class="flex items-center justify-center min-h-screen">
+      <div class="text-center">
+        <svg class="animate-spin h-16 w-16 text-purple-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p class="text-xl font-semibold text-gray-700">Initializing Authentication...</p>
+        <p class="text-sm text-gray-500 mt-2">Please wait</p>
       </div>
-    </header>
+    </div>
 
-    <!-- Main Content -->
-    <main class="container mx-auto px-4 py-8">
-      <!-- PHASE 3: Conditional Rendering Based on Loading/Error State -->
-
-      <!-- 1. Show Skeleton Loader During Initial Load/Rehydration -->
-      <div v-if="store.isLoading">
-        <AppSkeletonLoader />
+    <!-- Error Screen (if auth fails) -->
+    <div v-else-if="authError" class="flex items-center justify-center min-h-screen">
+      <div class="text-center max-w-md">
+        <svg class="w-16 h-16 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <h2 class="text-2xl font-bold text-gray-900 mb-2">Authentication Failed</h2>
+        <p class="text-gray-600 mb-6">{{ authError }}</p>
+        <button
+          @click="window.location.reload()"
+          class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-md font-semibold transition-colors"
+        >
+          Retry
+        </button>
       </div>
+    </div>
 
-      <!-- 2. Show Error Message if Something Went Wrong -->
-      <div v-else-if="store.appError">
-        <ErrorMessage
-          :message="store.appError"
-          @retry="handleRetry"
-        />
-      </div>
-
-      <!-- 3. Show Main Application UI -->
-      <div v-else>
-        <!-- Research Form (shown when no active session) -->
-        <div v-if="!store.sessionId" class="max-w-2xl mx-auto mb-8">
-          <div class="bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-2xl font-bold mb-4">Start New Research</h2>
-
-            <form @submit.prevent="submitResearch" class="space-y-4">
-              <div>
-                <label for="subject" class="block text-sm font-medium text-gray-700 mb-2">
-                  Research Subject
-                </label>
-                <input
-                  id="subject"
-                  v-model="researchSubject"
-                  type="text"
-                  class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter your research topic..."
-                  :disabled="store.isSubmitting"
-                />
-              </div>
-
-              <div>
-                <label for="language" class="block text-sm font-medium text-gray-700 mb-2">
-                  Language
-                </label>
-                <select
-                  id="language"
-                  v-model="researchLanguage"
-                  class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  :disabled="store.isSubmitting"
-                >
-                  <option value="vi">Vietnamese</option>
-                  <option value="en">English</option>
-                  <option value="es">Spanish</option>
-                  <option value="fr">French</option>
-                </select>
-              </div>
-
-              <button
-                type="submit"
-                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-md transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                :disabled="store.isSubmitting"
-              >
-                <span v-if="store.isSubmitting">Starting Research...</span>
-                <span v-else>🚀 Start Research</span>
-              </button>
-            </form>
-          </div>
-        </div>
-
-        <!-- Active Session Dashboard -->
-        <div v-else class="space-y-6">
-          <!-- Session Header -->
-          <div class="bg-white rounded-lg shadow-md p-6 flex justify-between items-center">
+    <!-- Main App (only after auth is ready) -->
+    <template v-else>
+      <!-- Header -->
+      <header class="bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg">
+        <div class="container mx-auto px-4 py-6">
+          <div class="flex items-center justify-between">
             <div>
-              <h2 class="text-2xl font-bold text-gray-800">Research Session</h2>
-              <p class="text-sm text-gray-600 mt-1">Session ID: {{ store.sessionId }}</p>
+              <h1 class="text-4xl font-bold">🎯 TK9 Deep Research Dashboard</h1>
+              <p class="text-purple-100 mt-2">Real-time multi-agent research monitoring</p>
             </div>
-            <button
-              @click="newResearch"
-              class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md font-semibold transition-colors"
+            <!-- Anonymous Session Badge -->
+            <AnonymousSessionBadge />
+          </div>
+
+          <!-- Navigation -->
+          <nav class="mt-4 flex gap-4">
+            <router-link
+              to="/"
+              class="px-4 py-2 rounded-md transition-colors"
+              :class="$route.path === '/' ? 'bg-white text-purple-600 font-semibold' : 'text-purple-100 hover:bg-purple-700'"
             >
-              New Research
-            </button>
-          </div>
-
-          <!-- PHASE 4: Agent Flow Visualization -->
-          <AgentFlow />
-
-          <!-- Dashboard Grid -->
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Left Column - Progress and Files -->
-            <div class="lg:col-span-2 space-y-6">
-              <ProgressTracker />
-              <FileExplorer />
-            </div>
-
-            <!-- Right Column - Logs -->
-            <div class="lg:col-span-1">
-              <div class="sticky top-6">
-                <LogViewer />
-              </div>
-            </div>
-          </div>
+              Dashboard
+            </router-link>
+            <router-link
+              to="/sessions"
+              class="px-4 py-2 rounded-md transition-colors"
+              :class="$route.path === '/sessions' ? 'bg-white text-purple-600 font-semibold' : 'text-purple-100 hover:bg-purple-700'"
+            >
+              Sessions
+            </router-link>
+          </nav>
         </div>
-      </div>
-    </main>
+      </header>
 
-    <!-- Footer -->
-    <footer class="bg-gray-800 text-gray-300 mt-12">
-      <div class="container mx-auto px-4 py-6 text-center">
-        <p class="text-sm">
-          TK9 Deep Research System | Powered by Multi-Agent AI | Version 2.0
-        </p>
-      </div>
-    </footer>
+      <!-- Main Content -->
+      <main class="container mx-auto px-4 py-8 flex-1">
+        <router-view />
+      </main>
+
+      <!-- Footer -->
+      <footer class="bg-gray-800 text-gray-300 mt-12">
+        <div class="container mx-auto px-4 py-6 text-center">
+          <p class="text-sm">
+            TK9 Deep Research System | Powered by Multi-Agent AI | Version 2.0
+          </p>
+        </div>
+      </footer>
+    </template>
   </div>
 </template>
 

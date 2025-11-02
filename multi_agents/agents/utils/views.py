@@ -1,13 +1,11 @@
-from colorama import Fore, Style
-from enum import Enum
 import json
 import os
-from typing import Optional, Dict, Any
-from .event_types import (
-    AgentStatus,
-    AgentError,
-    create_agent_update_event
-)
+from enum import Enum
+from typing import Any, Dict, Optional
+
+from colorama import Fore, Style
+
+from .event_types import AgentError, AgentStatus, create_agent_update_event
 
 
 class AgentColor(Enum):
@@ -30,6 +28,7 @@ class AgentColor(Enum):
 # Feature Flag for Gradual Migration (Phase 2)
 # ============================================================================
 
+
 def _should_use_json_output() -> bool:
     """
     Check if JSON output should be used based on feature flag
@@ -44,7 +43,7 @@ def _should_use_json_output() -> bool:
     - AGENT_JSON_MIGRATION=researcher,writer → only these agents use JSON
     """
     # Global flag
-    global_flag = os.getenv('ENABLE_JSON_OUTPUT', '').lower() == 'true'
+    global_flag = os.getenv("ENABLE_JSON_OUTPUT", "").lower() == "true"
     if global_flag:
         return True
 
@@ -55,6 +54,7 @@ def _should_use_json_output() -> bool:
 # ============================================================================
 # Legacy Text Output (Phase 1 - to be deprecated)
 # ============================================================================
+
 
 def print_agent_output(output: str, agent: str = "RESEARCHER"):
     """
@@ -69,12 +69,9 @@ def print_agent_output(output: str, agent: str = "RESEARCHER"):
         agent: Agent name (uppercase, e.g., "RESEARCHER", "WRITER")
     """
     # Auto-convert to JSON if enabled
-    if os.getenv('ENABLE_JSON_OUTPUT', '').lower() == 'true':
+    if os.getenv("ENABLE_JSON_OUTPUT", "").lower() == "true":
         print_structured_output(
-            message=output,
-            agent=agent,
-            status="running",
-            progress=None  # No artificial progress
+            message=output, agent=agent, status="running", progress=None  # No artificial progress
         )
         return
 
@@ -91,6 +88,7 @@ def print_agent_output(output: str, agent: str = "RESEARCHER"):
 # Phase 2: Structured JSON Output (NEW)
 # ============================================================================
 
+
 def print_structured_output(
     message: str,
     agent: str,
@@ -98,7 +96,7 @@ def print_structured_output(
     progress: Optional[int] = None,  # IMPORTANT: Don't use artificial percentages!
     data: Optional[Dict[str, Any]] = None,
     error: Optional[AgentError] = None,
-    force_json: bool = False
+    force_json: bool = False,
 ) -> None:
     """
     Print structured JSON output for agent events (Phase 2)
@@ -145,7 +143,7 @@ def print_structured_output(
     # Check feature flag (unless forced)
     if not force_json and not _should_use_json_output():
         # Check agent-specific migration
-        migrated_agents = os.getenv('AGENT_JSON_MIGRATION', '').lower().split(',')
+        migrated_agents = os.getenv("AGENT_JSON_MIGRATION", "").lower().split(",")
         migrated_agents = [a.strip() for a in migrated_agents if a.strip()]
 
         if agent.lower() not in migrated_agents:
@@ -161,7 +159,7 @@ def print_structured_output(
         message=message,
         progress=progress,
         data=data,
-        error=error
+        error=error,
     )
 
     # Output as JSON (one line for reliable parsing)
@@ -172,28 +170,22 @@ def print_structured_output(
 # Convenience Wrappers
 # ============================================================================
 
+
 def print_agent_progress(agent: str, message: str, progress: int) -> None:
     """Convenience wrapper for progress updates"""
-    print_structured_output(
-        message=message,
-        agent=agent,
-        status="running",
-        progress=progress
-    )
+    print_structured_output(message=message, agent=agent, status="running", progress=progress)
 
 
 def print_agent_completion(agent: str, message: str, data: Optional[Dict[str, Any]] = None) -> None:
     """Convenience wrapper for completion events"""
     print_structured_output(
-        message=message,
-        agent=agent,
-        status="completed",
-        progress=100,
-        data=data
+        message=message, agent=agent, status="completed", progress=100, data=data
     )
 
 
-def print_agent_error(agent: str, message: str, error_code: str, details: Optional[Dict[str, Any]] = None) -> None:
+def print_agent_error(
+    agent: str, message: str, error_code: str, details: Optional[Dict[str, Any]] = None
+) -> None:
     """Convenience wrapper for error events"""
     error: AgentError = {
         "code": error_code,
@@ -202,9 +194,4 @@ def print_agent_error(agent: str, message: str, error_code: str, details: Option
     if details:
         error["details"] = details
 
-    print_structured_output(
-        message=message,
-        agent=agent,
-        status="error",
-        error=error
-    )
+    print_structured_output(message=message, agent=agent, status="error", error=error)

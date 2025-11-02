@@ -8,9 +8,10 @@ These warnings appear when using Google Generative AI (Gemini) outside of GCP:
 The warnings are harmless but create log noise. This module suppresses them.
 """
 
-import os
 import logging
+import os
 import warnings
+
 
 def suppress_alts_warnings():
     """
@@ -39,6 +40,7 @@ def suppress_alts_warnings():
     # Method 5: Redirect stderr temporarily during Google library import
     # This is handled in the import wrapper below
 
+
 def safe_import_google_genai():
     """
     Import Google Generative AI library with ALTS warnings suppressed.
@@ -46,7 +48,6 @@ def safe_import_google_genai():
     Returns:
         The google.generativeai module, or None if import fails
     """
-    import sys
     import io
     from contextlib import redirect_stderr
 
@@ -72,6 +73,7 @@ def safe_import_google_genai():
         return None
     finally:
         stderr_buffer.close()
+
 
 # Apply suppressions immediately when this module is imported
 suppress_alts_warnings()

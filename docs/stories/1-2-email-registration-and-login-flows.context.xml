@@ -1,0 +1,335 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>2</storyId>
+    <title>Email Registration and Login Flows</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-01</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/1-2-email-registration-and-login-flows.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>anonymous user who has completed research</asA>
+    <iWant>to create a permanent account with email and password</iWant>
+    <soThat>my research history is preserved and accessible from any device</soThat>
+    <tasks>
+      <task id="1" ac="1">
+        <summary>Create AnonymousPrompt component for upgrade CTA</summary>
+        <subtasks>
+          <subtask>Create AnonymousPrompt.vue component in web_dashboard/frontend_poc/src/components/auth/</subtask>
+          <subtask>Display "Upgrade to Permanent Account" button with compelling copy</subtask>
+          <subtask>Show prompt after research completion for anonymous users only</subtask>
+          <subtask>Trigger registration modal on button click</subtask>
+          <subtask>Add dismissal logic (remind after 3rd research session)</subtask>
+        </subtasks>
+      </task>
+      <task id="2" ac="2,3,4,6">
+        <summary>Build RegistrationModal component</summary>
+        <subtasks>
+          <subtask>Create RegistrationModal.vue with email and password fields</subtask>
+          <subtask>Implement email validation using RFC 5322 regex or library</subtask>
+          <subtask>Implement password validation: min 8 chars, 1 uppercase, 1 lowercase, 1 number</subtask>
+          <subtask>Add real-time field validation with error messages</subtask>
+          <subtask>Display loading state during registration</subtask>
+          <subtask>Show success message: "Account created! Check your email for verification"</subtask>
+          <subtask>Handle registration errors (email already exists, network failures)</subtask>
+        </subtasks>
+      </task>
+      <task id="3" ac="5,6">
+        <summary>Implement registration flow in authStore</summary>
+        <subtasks>
+          <subtask>Add registerWithEmail(email, password) action to authStore</subtask>
+          <subtask>Call supabase.auth.signUp() with email and password</subtask>
+          <subtask>Transfer anonymous research sessions to new account via backend API</subtask>
+          <subtask>Update user state to registered account</subtask>
+          <subtask>Trigger email verification (handled by Supabase)</subtask>
+          <subtask>Handle errors and edge cases (verification already sent, etc.)</subtask>
+        </subtasks>
+      </task>
+      <task id="4" ac="5">
+        <summary>Create backend API endpoint for session transfer</summary>
+        <subtasks>
+          <subtask>Create /api/auth/transfer-sessions POST endpoint in web_dashboard/main.py</subtask>
+          <subtask>Accept { old_user_id: uuid, new_user_id: uuid } in request body</subtask>
+          <subtask>Update all research_sessions records: SET user_id = new_user_id WHERE user_id = old_user_id</subtask>
+          <subtask>Verify JWT auth middleware protects endpoint</subtask>
+          <subtask>Return count of transferred sessions in response</subtask>
+          <subtask>Add error handling (invalid user IDs, database errors)</subtask>
+        </subtasks>
+      </task>
+      <task id="5" ac="7,8">
+        <summary>Build LoginForm component</summary>
+        <subtasks>
+          <subtask>Create LoginForm.vue with email and password fields</subtask>
+          <subtask>Add "Forgot Password?" link below password field</subtask>
+          <subtask>Implement form submission to authStore login action</subtask>
+          <subtask>Display loading state during login</subtask>
+          <subtask>Show error messages for invalid credentials</subtask>
+          <subtask>Redirect to dashboard on successful login</subtask>
+        </subtasks>
+      </task>
+      <task id="6" ac="7">
+        <summary>Implement login flow in authStore</summary>
+        <subtasks>
+          <subtask>Add signInWithEmail(email, password) action to authStore</subtask>
+          <subtask>Call supabase.auth.signInWithPassword() with credentials</subtask>
+          <subtask>Update user and session state on successful login</subtask>
+          <subtask>Handle errors (invalid credentials, unverified email, account locked)</subtask>
+          <subtask>Store session in HTTP-only cookies (Supabase SDK default)</subtask>
+        </subtasks>
+      </task>
+      <task id="7" ac="8">
+        <summary>Implement password reset flow</summary>
+        <subtasks>
+          <subtask>Add "Forgot Password" modal component</subtask>
+          <subtask>Implement resetPassword(email) action in authStore</subtask>
+          <subtask>Call supabase.auth.resetPasswordForEmail()</subtask>
+          <subtask>Display success message: "Password reset link sent to your email"</subtask>
+          <subtask>Create password reset confirmation page (redirected from email)</subtask>
+          <subtask>Implement new password submission with validation</subtask>
+        </subtasks>
+      </task>
+      <task id="8" ac="7">
+        <summary>Add frontend routing and navigation</summary>
+        <subtasks>
+          <subtask>Add /login route to Vue Router</subtask>
+          <subtask>Add /register route (or handle via modal)</subtask>
+          <subtask>Add /auth/reset-password route for password reset callback</subtask>
+          <subtask>Implement navigation guards to redirect authenticated users away from auth pages</subtask>
+          <subtask>Update AnonymousSessionBadge to show "Sign In" option</subtask>
+        </subtasks>
+      </task>
+      <task id="9" ac="All">
+        <summary>Write tests for registration and login flows</summary>
+        <subtasks>
+          <subtask>Frontend unit tests: RegistrationModal.vue validation logic</subtask>
+          <subtask>Frontend unit tests: LoginForm.vue form handling</subtask>
+          <subtask>Frontend unit tests: authStore registration and login actions</subtask>
+          <subtask>Backend integration tests: /api/auth/transfer-sessions endpoint</subtask>
+          <subtask>E2E test: Complete anonymous upgrade journey</subtask>
+          <subtask>E2E test: Login and logout flow</subtask>
+        </subtasks>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">"Upgrade to Permanent Account" button displays on research completion for anonymous users</criterion>
+    <criterion id="2">Clicking button opens registration modal with email and password fields</criterion>
+    <criterion id="3">Email validation enforces standard format (RFC 5322)</criterion>
+    <criterion id="4">Password validation requires minimum 8 characters, 1 uppercase, 1 lowercase, 1 number</criterion>
+    <criterion id="5">Upon successful registration, system transfers all anonymous research sessions to new permanent account</criterion>
+    <criterion id="6">User receives email confirmation with verification link</criterion>
+    <criterion id="7">Registered users can log in via email/password on subsequent visits</criterion>
+    <criterion id="8">Login form includes "Forgot Password" link for password reset flow</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>Functional Requirements - Authentication</section>
+        <snippet>FR003: System shall provide email-based registration with password authentication for users who want permanent accounts. FR005: System shall implement JWT-based session management with 7-day access tokens and 30-day refresh tokens. FR006: System shall apply Row-Level Security (RLS) policies to ensure users can only access their own research data.</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>Non-Functional Requirements - Security</section>
+        <snippet>NFR005: Authentication system shall implement rate limiting of 100 requests per minute per user to prevent brute force attacks. NFR006: JWT tokens shall be securely stored using HTTP-only cookies (not localStorage) to mitigate XSS attacks. NFR007: RLS policies shall be tested and verified to prevent unauthorized access to other users' research data.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture.md</path>
+        <title>Decision Architecture</title>
+        <section>Authentication Components</section>
+        <snippet>Frontend: authStore (Pinia state), RegistrationModal.vue, LoginForm.vue components in web_dashboard/frontend_poc/src/components/auth/. Backend: auth_middleware.py (JWT verification), auth routes. Supabase Auth SDK for anonymous sign-in, sign-up, sign-in with password.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture.md</path>
+        <title>Decision Architecture</title>
+        <section>Authentication Flow</section>
+        <snippet>Anonymous upgrade flow: User enters email + password → Backend verifies anonymous JWT → Supabase creates permanent account → Database updates: user_id remains same, is_anonymous=false, email set → Transfer research sessions → New JWT issued with is_anonymous=false. Registered login: supabase.auth.signInWithPassword() → JWT token stored in HTTP-only cookie.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture.md</path>
+        <title>Decision Architecture</title>
+        <section>Authorization (RLS Policies)</section>
+        <snippet>Row-Level Security enforced at database level. Supabase client automatically applies policies. Example: SELECT * FROM research_sessions WHERE user_id = auth.uid() -- Automatic RLS filter.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture.md</path>
+        <title>Decision Architecture</title>
+        <section>ADR-002: Authentication System</section>
+        <snippet>2-tier authentication: (1) Anonymous access for zero friction entry, (2) Email registration for upgrade path after value demonstration. Supabase Auth chosen for JWT token management, RLS enforcement, and self-hosted compatibility. Expected 40% anonymous→registered conversion vs 10-15% for email-first approach.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>Epic 1: Authentication Foundation</title>
+        <section>Story 1.2 Definition</section>
+        <snippet>As an anonymous user who has completed research, I want to create a permanent account with email and password, so that my research history is preserved and accessible from any device.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>web_dashboard/frontend_poc/src/stores/authStore.ts</path>
+        <kind>Pinia store</kind>
+        <symbol>useAuthStore</symbol>
+        <lines>1-205</lines>
+        <reason>Existing auth store from Story 1.1 - MUST EXTEND with registerWithEmail(), signInWithEmail(), resetPassword() methods. DO NOT create new store. Uses composition API pattern with defineStore(() => {...})</reason>
+      </artifact>
+      <artifact>
+        <path>web_dashboard/frontend_poc/src/utils/supabase.ts</path>
+        <kind>Supabase client</kind>
+        <symbol>supabase</symbol>
+        <lines>1-21</lines>
+        <reason>Configured Supabase client for auth operations - reuse for signUp(), signInWithPassword(), resetPasswordForEmail() calls</reason>
+      </artifact>
+      <artifact>
+        <path>web_dashboard/middleware/auth_middleware.py</path>
+        <kind>FastAPI middleware</kind>
+        <symbol>verify_jwt_middleware</symbol>
+        <lines>29-144</lines>
+        <reason>JWT verification middleware - automatically protects new /api/auth/transfer-sessions endpoint. Extracts user_id from JWT and adds to request.state</reason>
+      </artifact>
+      <artifact>
+        <path>web_dashboard/frontend_poc/src/components/auth/AnonymousSessionBadge.vue</path>
+        <kind>Vue component</kind>
+        <symbol>AnonymousSessionBadge</symbol>
+        <lines>all</lines>
+        <reason>Existing auth component - extend to add "Sign In" button/link for registered user login</reason>
+      </artifact>
+      <artifact>
+        <path>web_dashboard/models.py</path>
+        <kind>Pydantic models</kind>
+        <symbol>ResearchRequest, SessionStatus</symbol>
+        <lines>1-50</lines>
+        <reason>Existing models - need to add TransferSessionsRequest model for session transfer endpoint: { old_user_id: uuid, new_user_id: uuid }</reason>
+      </artifact>
+      <artifact>
+        <path>web_dashboard/main.py</path>
+        <kind>FastAPI app</kind>
+        <symbol>app</symbol>
+        <lines>all</lines>
+        <reason>Main FastAPI application - add POST /api/auth/transfer-sessions endpoint here or create routers/auth.py. Middleware already registered at line 85</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <frontend ecosystem="Node.js" manifest="web_dashboard/frontend_poc/package.json">
+        <package name="vue" version="^3.5.22">UI framework</package>
+        <package name="pinia" version="^3.0.3">State management (authStore)</package>
+        <package name="@supabase/supabase-js" version="^2.78.0">Supabase client SDK for auth operations</package>
+        <package name="vue-toastification" version="^2.0.0-rc.5">Toast notifications for errors/success</package>
+        <package name="axios" version="^1.13.1">HTTP client for backend API calls</package>
+        <package name="typescript" version="~5.9.3">Type safety</package>
+        <package name="vite" version="^7.1.7">Build tool</package>
+        <package name="tailwindcss" version="^3.4.18">CSS framework</package>
+      </frontend>
+      <backend ecosystem="Python" manifest="web_dashboard/requirements.txt">
+        <package name="fastapi" version="0.104.1">Web framework</package>
+        <package name="pydantic" version="2.5.0">Data validation and models</package>
+        <package name="pyjwt[crypto]" version="2.10.1">JWT token verification</package>
+        <package name="uvicorn[standard]" version="0.24.0">ASGI server</package>
+      </backend>
+      <framework name="Supabase Auth" type="external-service">
+        <description>Managed authentication service providing signUp(), signInWithPassword(), resetPasswordForEmail() APIs</description>
+        <note>Requires VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables</note>
+      </framework>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>MUST extend existing authStore.ts - DO NOT create new store. Follow established Pinia composition API pattern: defineStore('auth', () => {...})</constraint>
+    <constraint>MUST reuse existing Supabase client from web_dashboard/frontend_poc/src/utils/supabase.ts - DO NOT create new client</constraint>
+    <constraint>Email validation MUST enforce RFC 5322 standard format</constraint>
+    <constraint>Password validation MUST require: minimum 8 characters, 1 uppercase letter, 1 lowercase letter, 1 number</constraint>
+    <constraint>JWT tokens MUST use HTTP-only cookies (Supabase SDK default) - NEVER use localStorage</constraint>
+    <constraint>Session transfer MUST preserve user_id - anonymous user_id becomes permanent account's user_id</constraint>
+    <constraint>Auth middleware automatically protects all non-public endpoints - no additional auth decorators needed</constraint>
+    <constraint>Rate limiting: 100 requests/minute per user for auth endpoints (production requirement - NFR005)</constraint>
+    <constraint>New auth components MUST be placed in web_dashboard/frontend_poc/src/components/auth/ directory</constraint>
+    <constraint>TypeScript files use camelCase.ts naming, Vue components use PascalCase.vue naming</constraint>
+    <constraint>MUST follow error handling pattern from Story 1.1: try/catch with toast notifications for user-facing errors</constraint>
+  </constraints>
+  <interfaces>
+    <interface>
+      <name>authStore - Existing Methods</name>
+      <kind>Pinia Store API</kind>
+      <signature>
+        // State: user: Ref&lt;User | null&gt;, session: Ref&lt;Session | null&gt;, isInitializing: Ref&lt;boolean&gt;
+        // Computed: isAuthenticated, isAnonymous, userId
+        // Actions (existing):
+        signInAnonymously(): Promise&lt;AuthResponse&gt;
+        restoreSession(): Promise&lt;boolean&gt;
+        initializeAuth(): Promise&lt;void&gt;
+        signOut(): Promise&lt;void&gt;
+      </signature>
+      <path>web_dashboard/frontend_poc/src/stores/authStore.ts</path>
+    </interface>
+    <interface>
+      <name>authStore - New Methods to Add</name>
+      <kind>Pinia Store API</kind>
+      <signature>
+        // NEW methods to add to existing authStore:
+        registerWithEmail(email: string, password: string): Promise&lt;AuthResponse&gt;
+        signInWithEmail(email: string, password: string): Promise&lt;AuthResponse&gt;
+        resetPassword(email: string): Promise&lt;void&gt;
+        transferAnonymousSessions(oldUserId: string, newUserId: string): Promise&lt;number&gt;
+      </signature>
+      <path>web_dashboard/frontend_poc/src/stores/authStore.ts</path>
+    </interface>
+    <interface>
+      <name>Supabase Auth SDK</name>
+      <kind>External SDK</kind>
+      <signature>
+        supabase.auth.signUp({ email: string, password: string }): Promise&lt;AuthResponse&gt;
+        supabase.auth.signInWithPassword({ email: string, password: string }): Promise&lt;AuthResponse&gt;
+        supabase.auth.resetPasswordForEmail(email: string): Promise&lt;{ error: AuthError | null }&gt;
+      </signature>
+      <path>@supabase/supabase-js</path>
+    </interface>
+    <interface>
+      <name>POST /api/auth/transfer-sessions</name>
+      <kind>REST endpoint</kind>
+      <signature>
+        POST /api/auth/transfer-sessions
+        Headers: Cookie with JWT access_token (verified by middleware)
+        Body: { old_user_id: string (uuid), new_user_id: string (uuid) }
+        Response: { transferred_count: number, message: string }
+        Errors: 401 (unauthorized), 400 (invalid user IDs), 500 (database error)
+      </signature>
+      <path>web_dashboard/main.py or routers/auth.py</path>
+    </interface>
+    <interface>
+      <name>Vue Router Routes</name>
+      <kind>Frontend routing</kind>
+      <signature>
+        /login - Login page/modal
+        /register - Registration page/modal (optional - may use modal instead)
+        /auth/reset-password - Password reset callback page (redirected from email link)
+        Navigation guards: redirect authenticated users away from /login and /register
+      </signature>
+      <path>web_dashboard/frontend_poc/src/router/index.ts (to be created)</path>
+    </interface>
+  </interfaces>
+  <tests>
+    <standards>
+      Backend: pytest framework with FastAPI TestClient. Unit tests use fixtures for JWT tokens and mocked dependencies. Follow pattern from web_dashboard/tests/test_auth_middleware.py - use pytest.fixture for test data, Mock/patch for external dependencies. Tests should reference AC IDs in docstrings. Frontend: Vitest framework (PENDING SETUP - Story 1.1 review finding). Until Vitest configured, document test cases in .spec.ts.README files as done in authStore.spec.ts.README.
+    </standards>
+    <locations>
+      Backend tests: web_dashboard/tests/ (e.g., test_auth_middleware.py, test_auth_endpoints.py - new)
+      Frontend tests: web_dashboard/frontend_poc/src/**/*.spec.ts (pending Vitest setup) or *.spec.ts.README for documentation
+    </locations>
+    <ideas>
+      <test ac="1">Unit: AnonymousPrompt displays after research completion. E2E: Complete research → verify upgrade prompt shows for anonymous user but not for registered user.</test>
+      <test ac="2">Unit: Clicking "Upgrade to Permanent Account" button triggers modal open. Component test: RegistrationModal receives proper show/hide props.</test>
+      <test ac="3">Unit: Email validation with RFC 5322 test cases - valid: user@example.com, invalid: user@, @example.com, user@.com, user@domain (no TLD).</test>
+      <test ac="4">Unit: Password validation test matrix - valid: Test123!, invalid: test123 (no uppercase), TEST123 (no lowercase), TestTest (no number), Test1 (too short).</test>
+      <test ac="5">Integration: POST /api/auth/transfer-sessions - verify all research_sessions transferred from old_user_id to new_user_id. Test with 0, 1, 5 sessions. Verify count returned. Test unauthorized (no JWT), invalid UUIDs.</test>
+      <test ac="6">Integration: Mock Supabase signUp() - verify email verification triggered. Check Supabase dashboard for email sent (manual test).</test>
+      <test ac="7">Unit: authStore.signInWithEmail() - test valid credentials (update state), invalid credentials (error handling). Integration: POST /api/auth/login equivalent if created.</test>
+      <test ac="8">Unit: "Forgot Password" link renders in LoginForm. Unit: authStore.resetPassword() calls supabase.auth.resetPasswordForEmail(). E2E: Click link → enter email → verify success message.</test>
+      <test ac="All">E2E: Complete anonymous-to-registered flow - create anonymous session, complete research, click upgrade, register with email, verify sessions transferred, verify can logout and login again.</test>
+    </ideas>
+  </tests>
+</story-context>

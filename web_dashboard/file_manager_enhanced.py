@@ -1,17 +1,13 @@
-import asyncio
 import hashlib
 import json
 import logging
 import mimetypes
-import os
-import shutil
-import tempfile
 import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from filename_utils import FilenameParser
+from filename_utils import FilenameParser, build_download_url
 from models import FileInfo, ResearchSession
 
 logger = logging.getLogger(__name__)
@@ -63,9 +59,7 @@ class EnhancedFileManager:
 
             # Check if ZIP already exists and is recent (cache for 1 hour)
             if zip_path.exists():
-                file_age = datetime.now() - datetime.fromtimestamp(
-                    zip_path.stat().st_mtime
-                )
+                file_age = datetime.now() - datetime.fromtimestamp(zip_path.stat().st_mtime)
                 if file_age < timedelta(hours=1):
                     logger.info(f"Using cached ZIP file: {zip_path}")
                     return zip_path
@@ -81,9 +75,7 @@ class EnhancedFileManager:
                         and file_path.suffix.lower() in self.supported_extensions
                     ):
                         # Create user-friendly name in ZIP
-                        friendly_name = self.create_friendly_filename_from_uuid(
-                            file_path.name
-                        )
+                        friendly_name = self.create_friendly_filename_from_uuid(file_path.name)
                         zipf.write(file_path, arcname=friendly_name)
                         files_added += 1
                         logger.info(f"Added to ZIP: {friendly_name}")
@@ -181,9 +173,7 @@ class EnhancedFileManager:
             "See file_manager_enhanced.py:168 for full deprecation rationale."
         )
 
-    async def search_files(
-        self, query: str, session_id: Optional[str] = None
-    ) -> List[Dict]:
+    async def search_files(self, query: str, session_id: Optional[str] = None) -> List[Dict]:
         """Search for files across sessions or within a specific session"""
         results = []
         query_lower = query.lower()
@@ -224,18 +214,20 @@ class EnhancedFileManager:
                         file_path.is_file()
                         and file_path.suffix.lower() in self.supported_extensions
                     ):
-                        friendly_name = self.create_friendly_filename_from_uuid(
-                            file_path.name
-                        )
+                        # DRY: Use centralized FilenameParser to extract ALL file metadata
+                        parsed_file = FilenameParser.parse(file_path.name)
 
-                        if query_lower in friendly_name.lower():
+                        if parsed_file and query_lower in parsed_file.friendly_name.lower():
                             file_info = FileInfo(
-                                filename=friendly_name,
-                                url=f"/download/{sess_id}/{file_path.name}",
+                                filename=file_path.name,  # Use UUID filename
+                                url=build_download_url(
+                                    sess_id, file_path.name
+                                ),  # DRY: centralized URL builder
                                 size=file_path.stat().st_size,
-                                created=datetime.fromtimestamp(
-                                    file_path.stat().st_ctime
-                                ),
+                                created=datetime.fromtimestamp(file_path.stat().st_ctime),
+                                file_type=parsed_file.file_type.value,
+                                language=parsed_file.language.value,
+                                friendly_name=parsed_file.friendly_name,
                             )
 
                             results.append(
@@ -253,9 +245,7 @@ class EnhancedFileManager:
             logger.error(f"Error searching files: {e}")
             return []
 
-    def track_download(
-        self, session_id: str, filename: str, user_info: Optional[Dict] = None
-    ):
+    def track_download(self, session_id: str, filename: str, user_info: Optional[Dict] = None):
         """Track file download for analytics"""
         download_record = {
             "timestamp": datetime.now().isoformat(),
@@ -386,9 +376,7 @@ class EnhancedFileManager:
         file_size = file_path.stat().st_size
         max_size = 50 * 1024 * 1024  # 50MB
         if file_size > max_size:
-            raise ValueError(
-                f"File too large for preview: {file_size} bytes (max: {max_size})"
-            )
+            raise ValueError(f"File too large for preview: {file_size} bytes (max: {max_size})")
 
         # Read file content
         try:
@@ -440,23 +428,29 @@ class EnhancedFileManager:
 
         try:
             for file_path in session_dir.iterdir():
-                if (
-                    file_path.is_file()
-                    and file_path.suffix.lower() in self.supported_extensions
-                ):
-                    # Use actual UUID filename (not friendly name) for uniqueness
-                    # This ensures downloads work correctly
-                    file_info = FileInfo(
-                        filename=file_path.name,  # Use UUID filename directly
-                        url=f"/download/{session_id}/{file_path.name}",
-                        size=file_path.stat().st_size,
-                        created=datetime.fromtimestamp(file_path.stat().st_ctime),
-                    )
-                    files.append(file_info)
+                if file_path.is_file() and file_path.suffix.lower() in self.supported_extensions:
+                    # DRY: Use centralized FilenameParser to extract ALL file metadata
+                    parsed_file = FilenameParser.parse(file_path.name)
 
-            files.sort(
-                key=lambda f: (self.get_file_sort_priority(f.filename), f.filename)
-            )
+                    if parsed_file:
+                        # Use actual UUID filename (not friendly name) for uniqueness
+                        # This ensures downloads work correctly
+                        file_info = FileInfo(
+                            filename=file_path.name,  # Use UUID filename directly
+                            url=build_download_url(
+                                session_id, file_path.name
+                            ),  # DRY: centralized URL builder
+                            size=file_path.stat().st_size,
+                            created=datetime.fromtimestamp(file_path.stat().st_ctime),
+                            file_type=parsed_file.file_type.value,  # Extract from parsed metadata
+                            language=parsed_file.language.value,  # Extract from parsed metadata
+                            friendly_name=parsed_file.friendly_name,  # Backend is source of truth
+                        )
+                        files.append(file_info)
+                    else:
+                        logger.warning(f"Could not parse filename {file_path.name}, skipping")
+
+            files.sort(key=lambda f: (self.get_file_sort_priority(f.filename), f.filename))
 
         except Exception as e:
             logger.error(f"Error discovering files for session {session_id}: {e}")

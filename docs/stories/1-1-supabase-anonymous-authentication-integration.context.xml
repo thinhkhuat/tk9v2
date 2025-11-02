@@ -1,0 +1,238 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>1</storyId>
+    <title>Supabase Anonymous Authentication Integration</title>
+    <status>drafted</status>
+    <generatedAt>2025-10-31</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/1-1-supabase-anonymous-authentication-integration.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>new user</asA>
+    <iWant>to access TK9 immediately without creating an account</iWant>
+    <soThat>I can evaluate the research capabilities with zero friction</soThat>
+    <tasks>
+      - Task 1: Install and configure Supabase client dependencies (AC: #1, #2)
+        - Install @supabase/supabase-js in frontend
+        - Create Supabase client utility at web_dashboard/frontend_poc/src/utils/supabase.ts
+        - Configure environment variables (SUPABASE_URL, SUPABASE_ANON_KEY)
+
+      - Task 2: Create authentication store with Pinia (AC: #1, #2, #3)
+        - Create web_dashboard/frontend_poc/src/stores/authStore.ts
+        - Implement signInAnonymously() action
+        - Store user state (id, email, is_anonymous)
+        - Store session state (access_token, refresh_token)
+        - Configure JWT storage in HTTP-only cookies
+
+      - Task 3: Implement automatic anonymous sign-in on app mount (AC: #1, #4, #6)
+        - Add auth initialization logic in App.vue or main.ts
+        - Call authStore.signInAnonymously() on first load
+        - Handle existing session detection (restore from cookie)
+        - Implement session persistence across browser refresh
+
+      - Task 4: Add anonymous session UI indicator (AC: #5)
+        - Create AnonymousSessionBadge component
+        - Display badge in dashboard header/nav
+        - Show "Anonymous Session" text or icon
+        - Add tooltip explaining anonymous mode
+
+      - Task 5: Backend session verification (AC: #2, #3)
+        - Create JWT verification middleware at web_dashboard/middleware/auth_middleware.py
+        - Verify Supabase JWT signature using public key
+        - Extract user_id from JWT payload
+        - Protect API endpoints with auth middleware
+
+      - Task 6: Write tests for authentication flow (AC: All)
+        - Frontend unit tests: authStore.spec.ts
+        - Backend integration tests: tests/test_auth.py
+        - E2E test: Anonymous user journey
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    1. When user lands on TK9 web dashboard, system automatically calls supabase.auth.signInAnonymously()
+    2. Anonymous user receives a unique UUID-based user ID and session token
+    3. Session token is stored in HTTP-only cookie (not localStorage)
+    4. User can initiate research without any authentication prompts
+    5. System displays subtle indicator showing anonymous status (e.g., "Anonymous Session" badge)
+    6. Anonymous session persists across browser refresh (session cookie remains valid)
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <artifact>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>Authentication Requirements (FR001-FR006)</section>
+        <snippet>FR001: System shall provide anonymous sign-in functionality that automatically creates a session without requiring user input. FR005: System shall implement JWT-based session management with 7-day access tokens and 30-day refresh tokens. FR006: JWT tokens shall be securely stored using HTTP-only cookies (not localStorage) to mitigate XSS attacks.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture.md</path>
+        <title>Technical Architecture Document</title>
+        <section>Authentication Flow</section>
+        <snippet>User lands on dashboard → Frontend calls supabase.auth.signInAnonymously() → Supabase creates anonymous user with UUID → JWT token stored in HTTP-only cookie → User can initiate research without registration.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture.md</path>
+        <title>Technical Architecture Document</title>
+        <section>Security Architecture - JWT Storage</section>
+        <snippet>JWT tokens MUST be stored in HTTP-only cookies (not localStorage) to prevent XSS attacks. Cookie configuration includes Secure flag for production and SameSite=Lax for CSRF protection. Session tokens use 7-day access token and 30-day refresh token.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture.md</path>
+        <title>Technical Architecture Document</title>
+        <section>ADR-002: Supabase Authentication System</section>
+        <snippet>Decision: Use Supabase Auth SDK for authentication with anonymous sign-in and upgrade path. Context: Need frictionless onboarding with optional conversion to permanent accounts. Consequences: Simplified auth implementation, built-in JWT handling, RLS integration.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture.md</path>
+        <title>Technical Architecture Document</title>
+        <section>Data Models - User and AuthState</section>
+        <snippet>User interface includes id (UUID), email (nullable for anonymous), is_anonymous (boolean), created_at, updated_at. AuthState includes user object, session object with access_token and refresh_token, isAuthenticated computed property.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture.md</path>
+        <title>Technical Architecture Document</title>
+        <section>Implementation Patterns - Naming Conventions</section>
+        <snippet>TypeScript files use camelCase.ts (e.g., authStore.ts, supabase.ts). Vue components use PascalCase.vue (e.g., AnonymousSessionBadge.vue). Python files use snake_case.py (e.g., auth_middleware.py). Store actions use camelCase (e.g., signInAnonymously, restoreSession).</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/epics.md</path>
+        <title>Epic and Story Breakdown</title>
+        <section>Epic 1 - Story 1.1</section>
+        <snippet>Epic 1 focuses on Authentication Foundation with Story 1.1 as the first implementation: Supabase Anonymous Authentication Integration. Prerequisites include Supabase project configured and environment variables set. Estimated effort: 2 points (1-2 days).</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/product-brief-TK9-2025-10-31.md</path>
+        <title>Product Brief</title>
+        <section>Solution Overview - Authentication</section>
+        <snippet>2-tier authentication system: Tier 1 (anonymous) allows immediate access with zero friction, auto-generates UUID session, stores in HTTP-only cookie. Tier 2 (email registration) provides upgrade path for users who want permanent accounts, preserves research history during upgrade.</snippet>
+      </artifact>
+    </docs>
+    <code>
+      <artifact>
+        <path>web_dashboard/frontend_poc/src/main.ts</path>
+        <kind>frontend-entry</kind>
+        <symbol>app initialization</symbol>
+        <lines>1-27</lines>
+        <reason>Entry point for Vue app initialization. Will need to add auth initialization logic here or in App.vue onMounted.</reason>
+      </artifact>
+      <artifact>
+        <path>web_dashboard/frontend_poc/src/App.vue</path>
+        <kind>vue-component</kind>
+        <symbol>App root component</symbol>
+        <lines>18-27</lines>
+        <reason>Current onMounted hook handles session rehydration. Auth initialization should be added here to trigger signInAnonymously() before loading dashboard.</reason>
+      </artifact>
+      <artifact>
+        <path>web_dashboard/frontend_poc/src/stores/sessionStore.ts</path>
+        <kind>pinia-store</kind>
+        <symbol>useSessionStore</symbol>
+        <lines>existing</lines>
+        <reason>Existing Pinia store for session management. New authStore will follow similar patterns for state management, WebSocket integration, and API calls.</reason>
+      </artifact>
+      <artifact>
+        <path>web_dashboard/main.py</path>
+        <kind>fastapi-server</kind>
+        <symbol>FastAPI app</symbol>
+        <lines>53-80</lines>
+        <reason>FastAPI main app with CORS configuration. Auth middleware will be registered here after JWT verification middleware is created.</reason>
+      </artifact>
+      <artifact>
+        <path>web_dashboard/main.py</path>
+        <kind>fastapi-server</kind>
+        <symbol>CORS origins</symbol>
+        <lines>61-76</lines>
+        <reason>Current CORS configuration. Must ensure Supabase domain is allowed if making direct client calls to Supabase (though SDK handles this internally).</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <frontend>
+        <package name="@supabase/supabase-js" version="^2.39.0" status="required-new">Supabase JavaScript client for authentication and database access</package>
+        <package name="vue" version="^3.5.22" status="existing">Vue 3 with Composition API</package>
+        <package name="pinia" version="^3.0.3" status="existing">State management (will use for authStore)</package>
+        <package name="axios" version="^1.13.1" status="existing">HTTP client for API calls</package>
+        <package name="vue-toastification" version="^2.0.0-rc.5" status="existing">Toast notifications</package>
+        <package name="typescript" version="~5.9.3" status="existing">TypeScript support</package>
+      </frontend>
+      <backend>
+        <package name="pyjwt[crypto]" version="^2.8.0" status="required-new">JWT token verification with cryptographic signing</package>
+        <package name="fastapi" version="0.104.1" status="existing">FastAPI web framework</package>
+        <package name="uvicorn[standard]" version="0.24.0" status="existing">ASGI server</package>
+        <package name="pydantic" version="2.5.0" status="existing">Data validation</package>
+      </backend>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - JWT tokens MUST be stored in HTTP-only cookies (not localStorage) to prevent XSS attacks
+    - Cookie configuration must use Secure flag in production and SameSite=Lax for CSRF protection
+    - Anonymous authentication must be completely transparent - no user prompts or delays
+    - Session must persist across browser refresh by checking for existing session on app mount
+    - Auth middleware must skip public endpoints (/api/health, /docs, /openapi.json)
+    - All protected API endpoints must validate JWT before processing requests
+    - TypeScript files must use camelCase.ts naming (authStore.ts, supabase.ts)
+    - Vue components must use PascalCase.vue naming (AnonymousSessionBadge.vue)
+    - Python files must use snake_case.py naming (auth_middleware.py)
+    - Store actions must use camelCase naming (signInAnonymously, restoreSession)
+    - Follow existing Pinia store pattern in sessionStore.ts for consistency
+    - Session tokens: 7-day access token, 30-day refresh token (configured in Supabase)
+    - Environment variables must be prefixed with VITE_ for frontend (Vite requirement)
+  </constraints>
+  <interfaces>
+    <interface>
+      <name>supabase.auth.signInAnonymously()</name>
+      <kind>Supabase Auth SDK method</kind>
+      <signature>Promise&lt;{ data: { user: User, session: Session }, error: Error | null }&gt;</signature>
+      <path>@supabase/supabase-js (external SDK)</path>
+    </interface>
+    <interface>
+      <name>supabase.auth.getSession()</name>
+      <kind>Supabase Auth SDK method</kind>
+      <signature>Promise&lt;{ data: { session: Session | null }, error: Error | null }&gt;</signature>
+      <path>@supabase/supabase-js (external SDK)</path>
+    </interface>
+    <interface>
+      <name>POST /api/research</name>
+      <kind>REST endpoint</kind>
+      <signature>POST /api/research { subject: string, language: string } → { session_id: string, status: string }</signature>
+      <path>web_dashboard/main.py:95-120</path>
+    </interface>
+    <interface>
+      <name>JWT Payload Structure</name>
+      <kind>Data structure</kind>
+      <signature>{ sub: string (user_id), is_anonymous: boolean, iat: number, exp: number }</signature>
+      <path>Supabase JWT specification</path>
+    </interface>
+    <interface>
+      <name>Request.state.user_id</name>
+      <kind>FastAPI request state</kind>
+      <signature>request.state.user_id: str - Extracted from JWT by middleware</signature>
+      <path>web_dashboard/middleware/auth_middleware.py (to be created)</path>
+    </interface>
+  </interfaces>
+  <tests>
+    <standards>
+      Frontend testing uses Vitest as the test runner with Vue Test Utils for component testing. Tests are colocated with source files using .spec.ts extension (e.g., authStore.spec.ts). Backend testing uses pytest with async support. Integration tests verify API endpoints and middleware behavior. E2E tests simulate complete user journeys from landing to research initiation.
+    </standards>
+    <locations>
+      - Frontend unit tests: web_dashboard/frontend_poc/src/**/*.spec.ts
+      - Backend tests: web_dashboard/tests/test_*.py
+      - Integration tests: web_dashboard/tests/integration/
+      - E2E tests: web_dashboard/tests/e2e/
+    </locations>
+    <ideas>
+      - AC1: Test that signInAnonymously() is called automatically on app mount (mock Supabase SDK, verify method call)
+      - AC2: Verify anonymous user receives UUID and valid JWT token (check response structure, UUID format, token signature)
+      - AC3: Confirm JWT is stored in HTTP-only cookie, not localStorage (test cookie presence, verify localStorage is empty)
+      - AC4: Test that user can access protected endpoints after anonymous sign-in (integration test: sign in → call API → verify success)
+      - AC5: Verify AnonymousSessionBadge component renders correctly (mount component, check for badge text/icon, verify tooltip)
+      - AC6: Test session persistence by simulating browser refresh (store session → clear component state → remount → verify session restored)
+      - Error case: Test JWT verification middleware rejects invalid tokens (send malformed JWT → expect 401)
+      - Error case: Test JWT verification middleware rejects expired tokens (send expired JWT → expect 401 with TOKEN_EXPIRED code)
+      - Error case: Test anonymous sign-in failure handling (mock SDK error → verify error message displayed)
+    </ideas>
+  </tests>
+</story-context>

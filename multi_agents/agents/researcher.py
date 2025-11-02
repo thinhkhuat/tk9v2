@@ -1,37 +1,62 @@
-from gpt_researcher import GPTResearcher
-from colorama import Fore, Style
-from .utils.views import print_agent_output, print_structured_output, print_agent_completion
 import os
+
+from colorama import Fore, Style
+from gpt_researcher import GPTResearcher
+
+from .utils.views import print_agent_completion, print_agent_output, print_structured_output
 
 
 class ResearchAgent:
-    def __init__(self, websocket=None, stream_output=None, tone=None, headers=None, draft_manager=None):
+    def __init__(
+        self, websocket=None, stream_output=None, tone=None, headers=None, draft_manager=None
+    ):
         self.websocket = websocket
         self.stream_output = stream_output
         self.headers = headers or {}
         self.tone = tone
         self.draft_manager = draft_manager
-        
+
         # Note: BRAVE integration is now handled early in main.py
-    
+
     def _setup_brave_integration(self):
         """Setup BRAVE custom retriever integration if configured"""
         try:
-            if os.getenv('PRIMARY_SEARCH_PROVIDER') == 'brave':
+            if os.getenv("PRIMARY_SEARCH_PROVIDER") == "brave":
                 from ..simple_brave_retriever import setup_simple_brave_retriever
+
                 success = setup_simple_brave_retriever()
                 if success:
-                    print_agent_output("BRAVE simple custom retriever integration activated", "RESEARCH")
+                    print_agent_output(
+                        "BRAVE simple custom retriever integration activated", "RESEARCH"
+                    )
                 else:
-                    print_agent_output("BRAVE integration failed, falling back to default", "WARNING")
+                    print_agent_output(
+                        "BRAVE integration failed, falling back to default", "WARNING"
+                    )
         except Exception as e:
             print_agent_output(f"BRAVE integration error: {e}", "ERROR")
 
-    async def research(self, query: str, research_report: str = "research_report",
-                       parent_query: str = "", verbose=True, source="web", tone=None, headers=None):
+    async def research(
+        self,
+        query: str,
+        research_report: str = "research_report",
+        parent_query: str = "",
+        verbose=True,
+        source="web",
+        tone=None,
+        headers=None,
+    ):
         # Initialize the researcher
-        researcher = GPTResearcher(query=query, report_type=research_report, parent_query=parent_query,
-                                   verbose=verbose, report_source=source, tone=tone, websocket=self.websocket, headers=self.headers)
+        researcher = GPTResearcher(
+            query=query,
+            report_type=research_report,
+            parent_query=parent_query,
+            verbose=verbose,
+            report_source=source,
+            tone=tone,
+            websocket=self.websocket,
+            headers=self.headers,
+        )
         # Conduct research on the given query
         await researcher.conduct_research()
         # Write the report
@@ -39,10 +64,19 @@ class ResearchAgent:
 
         return report
 
-    async def run_subtopic_research(self, parent_query: str, subtopic: str, verbose: bool = True, source="web", headers=None):
+    async def run_subtopic_research(
+        self, parent_query: str, subtopic: str, verbose: bool = True, source="web", headers=None
+    ):
         try:
-            report = await self.research(parent_query=parent_query, query=subtopic,
-                                         research_report="subtopic_report", verbose=verbose, source=source, tone=self.tone, headers=None)
+            report = await self.research(
+                parent_query=parent_query,
+                query=subtopic,
+                research_report="subtopic_report",
+                verbose=verbose,
+                source=source,
+                tone=self.tone,
+                headers=None,
+            )
         except Exception as e:
             print(f"{Fore.RED}Error in researching topic {subtopic}: {e}{Style.RESET_ALL}")
             report = None
@@ -54,19 +88,29 @@ class ResearchAgent:
         source = task.get("source", "web")
 
         if self.websocket and self.stream_output:
-            await self.stream_output("logs", "initial_research", f"Running initial research on the following query: {query}", self.websocket)
+            await self.stream_output(
+                "logs",
+                "initial_research",
+                f"Running initial research on the following query: {query}",
+                self.websocket,
+            )
         else:
             # Phase 2: Use structured JSON output (no artificial progress)
             # NOTE: This is the "browser" node in workflow - maps to Browser agent in frontend
             print_structured_output(
                 message=f"Running initial research on the following query: {query}",
                 agent="BROWSER",
-                status="running"
+                status="running",
             )
-        
+
         # Conduct research
-        research_result = await self.research(query=query, verbose=task.get("verbose"),
-                                            source=source, tone=self.tone, headers=self.headers)
+        research_result = await self.research(
+            query=query,
+            verbose=task.get("verbose"),
+            source=source,
+            tone=self.tone,
+            headers=self.headers,
+        )
 
         # Save draft of initial research
         if self.draft_manager:
@@ -74,7 +118,7 @@ class ResearchAgent:
                 agent_name="researcher",
                 phase="initial_research",
                 output=research_result,
-                metadata={"query": query, "source": source}
+                metadata={"query": query, "source": source},
             )
 
         # Phase 2: Signal completion with structured output
@@ -82,7 +126,7 @@ class ResearchAgent:
             print_agent_completion(
                 agent="BROWSER",
                 message=f"Completed initial research for: {query}",
-                data={"query": query, "report_length": len(research_result)}
+                data={"query": query, "report_length": len(research_result)},
             )
 
         return {"task": task, "initial_research": research_result}
@@ -94,18 +138,28 @@ class ResearchAgent:
         source = task.get("source", "web")
         verbose = task.get("verbose")
         if self.websocket and self.stream_output:
-            await self.stream_output("logs", "depth_research", f"Running in depth research on the following report topic: {topic}", self.websocket)
+            await self.stream_output(
+                "logs",
+                "depth_research",
+                f"Running in depth research on the following report topic: {topic}",
+                self.websocket,
+            )
         else:
             # Phase 2: Use structured JSON output (no artificial progress)
             print_structured_output(
                 message=f"Running in depth research on the following report topic: {topic}",
                 agent="RESEARCHER",
-                status="running"
+                status="running",
             )
-        
-        research_draft = await self.run_subtopic_research(parent_query=parent_query, subtopic=topic,
-                                                          verbose=verbose, source=source, headers=self.headers)
-        
+
+        research_draft = await self.run_subtopic_research(
+            parent_query=parent_query,
+            subtopic=topic,
+            verbose=verbose,
+            source=source,
+            headers=self.headers,
+        )
+
         # Save draft of depth research
         if self.draft_manager:
             self.draft_manager.save_agent_output(
@@ -113,7 +167,7 @@ class ResearchAgent:
                 phase="parallel_research",
                 output=research_draft,
                 step=topic,
-                metadata={"parent_query": parent_query, "subtopic": topic, "source": source}
+                metadata={"parent_query": parent_query, "subtopic": topic, "source": source},
             )
-        
+
         return {"draft": research_draft}

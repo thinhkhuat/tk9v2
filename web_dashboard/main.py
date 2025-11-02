@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import urllib.parse
 import uuid
@@ -12,14 +13,8 @@ from dotenv import load_dotenv
 # Load environment variables from .env file BEFORE importing anything else
 load_dotenv()
 
-from fastapi import (
-    BackgroundTasks,
-    FastAPI,
-    HTTPException,
-    Request,
-    WebSocket,
-    WebSocketDisconnect,
-)
+# ruff: noqa: E402 - Imports after load_dotenv() are intentional
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -32,7 +27,13 @@ from cli_executor import CLIExecutor
 from config import settings
 from file_manager import FileManager
 from file_manager_enhanced import EnhancedFileManager
-from filename_utils import FilenameParser, SecurePathValidator, ParsedFilename
+from filename_utils import (
+    FilenameParser,
+    Language,
+    ParsedFilename,
+    SecurePathValidator,
+    build_download_url,
+)
 from middleware.auth_middleware import verify_jwt_middleware
 from models import (
     ResearchRequest,
@@ -42,7 +43,7 @@ from models import (
     SessionStatusEnum,
     TransferSessionsRequest,
 )
-from schemas import WebSocketEvent, create_file_generated_event
+from schemas import create_file_generated_event
 from websocket_handler import WebSocketManager
 
 # Setup logging
@@ -96,7 +97,8 @@ app.add_middleware(
 )
 
 # Register authentication middleware for JWT verification
-# Note: Middleware is lenient - skips public endpoints and degrades gracefully if JWT_SECRET not configured
+# Note: Middleware is lenient - skips public endpoints and degrades gracefully
+# if JWT_SECRET not configured
 app.middleware("http")(verify_jwt_middleware)
 
 # Mount static files
@@ -120,16 +122,14 @@ async def submit_research(
     # Generate unique session ID
     session_id = str(uuid.uuid4())
 
-    logger.info(
-        f"New research request - Session: {session_id}, Subject: {request.subject}"
-    )
+    logger.info(f"New research request - Session: {session_id}, Subject: {request.subject}")
 
     # Get user_id from JWT (added by middleware)
     # Frontend MUST create anonymous user via Supabase Auth before making requests
     user_id = getattr(req.state, "user_id", None)
 
     if not user_id:
-        logger.error(f"No user_id in request state - middleware auth failed")
+        logger.error("No user_id in request state - middleware auth failed")
         raise HTTPException(
             status_code=401,
             detail="Authentication required. User must be signed in (anonymous or registered).",
@@ -149,9 +149,7 @@ async def submit_research(
         # Continue anyway - database is optional, CLI can still run
 
     # Start research in background
-    background_tasks.add_task(
-        start_research_session, session_id, request.subject, request.language
-    )
+    background_tasks.add_task(start_research_session, session_id, request.subject, request.language)
 
     return ResearchResponse(
         session_id=session_id,
@@ -194,63 +192,132 @@ async def get_session_status(session_id: str):
 
 
 @app.get("/api/session/{session_id}/state")
-async def get_session_state(session_id: str):
+async def get_session_state(session_id: str, req: Request):
     """
     Get complete session state for re-hydration after page refresh.
     Returns current status, files, and progress.
 
     DRY: Prefers database file_count over len(files) calculation.
+
+    Authentication: Verifies user has access to session via JWT
+    Database-first: Checks session existence in database before filesystem
     """
+    # Get user_id from JWT (added by middleware)
+    user_id = getattr(req.state, "user_id", None)
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required. User must be signed in.",
+        )
+
+    # DATABASE-FIRST: Check if session exists and user has access
+    # This prevents 404 errors for historical sessions without files
+    db_session = await database.get_session_by_id(session_id, user_id)
+
+    if not db_session:
+        raise HTTPException(status_code=404, detail="Session not found or access denied")
+
+    # FALLBACK MECHANISM: Reconcile database with filesystem reality
+    # This auto-corrects historical sessions that have wrong status/file_count
+    # due to failed database updates during research execution
+    outputs_path = PROJECT_ROOT / "outputs"
+    reconciled_session = await database.reconcile_session_with_filesystem(
+        session_id, outputs_path, user_id
+    )
+
+    # Use reconciled session if corrections were made, otherwise use original
+    if reconciled_session:
+        logger.info(f"🔧 Session {session_id} was reconciled with filesystem")
+        db_session = reconciled_session
+
+    # Session exists in database - now enrich with runtime data
     # Check if session exists in memory (active sessions)
     cli_status = cli_executor.get_session_status(session_id)
 
-    # Get files from filesystem (works for both active and completed sessions)
-    files = await file_manager.get_session_files(session_id)
-
-    # If session is not active AND no files exist, it's truly not found
-    if not cli_status and not files:
-        raise HTTPException(status_code=404, detail="Session not found")
+    # DATABASE-FIRST for files: prefer draft_files records, fallback to filesystem
+    files_payload = []
+    try:
+        drafts = await database.get_session_files(session_id)
+        if drafts:
+            for d in drafts:
+                try:
+                    filename = Path(d.file_path).name
+                    parsed = FilenameParser.parse(filename)
+                    file_type = (
+                        parsed.file_type.value
+                        if parsed
+                        else FilenameParser.extract_file_type(filename).value
+                    )
+                    language = (
+                        parsed.language.value
+                        if parsed
+                        else FilenameParser.extract_language(filename).value
+                    )
+                    files_payload.append(
+                        {
+                            "file_id": filename,
+                            "filename": filename,
+                            "file_type": file_type,
+                            "language": language,
+                            "size_bytes": d.file_size_bytes,
+                            "download_url": build_download_url(session_id, filename),
+                        }
+                    )
+                except Exception:
+                    continue
+        else:
+            # Fallback to filesystem discovery
+            fm_files = await file_manager.get_session_files(session_id)
+            for f in fm_files:
+                files_payload.append(
+                    {
+                        "file_id": f.filename,
+                        "filename": f.filename,
+                        "file_type": f.file_type,
+                        "language": f.language,
+                        "size_bytes": f.size or 0,
+                        "download_url": f.url,
+                    }
+                )
+    except Exception:
+        # Graceful degradation: leave files_payload empty
+        files_payload = []
 
     # Note: Statistics removed - use dedicated /api/session/{id}/statistics endpoint
     # That endpoint now uses database-first approach (DRY compliance)
 
     # Build complete state
-    # For completed sessions not in memory, infer status from files
+    # Database is ALWAYS the single source of truth for session metadata
+    # CLI status is only used for transient runtime info (status, timestamps, errors)
+
+    # Step 1: Get runtime status from CLI (if available) or use DB status
     if cli_status:
         status = cli_status["status"]
-        subject = cli_status.get("subject", "Unknown")
         start_time = (
-            cli_status.get("start_time").isoformat()
-            if cli_status.get("start_time")
-            else None
+            cli_status.get("start_time").isoformat() if cli_status.get("start_time") else None
         )
-        end_time = (
-            cli_status.get("end_time").isoformat()
-            if cli_status.get("end_time")
-            else None
-        )
+        end_time = cli_status.get("end_time").isoformat() if cli_status.get("end_time") else None
         error = cli_status.get("error")
     else:
-        # Session completed and no longer in memory, but files exist
-        status = "completed"
-        subject = "Unknown"  # Can't retrieve subject from completed sessions
-        start_time = None
-        end_time = None
+        # Session not in CLI memory - use database status
+        # Map DB status enum to CLI status format
+        status_mapping = {
+            "in_progress": "running",
+            "completed": "completed",
+            "failed": "failed",
+        }
+        status = status_mapping.get(
+            db_session.status.value if hasattr(db_session.status, "value") else db_session.status,
+            "completed",  # Default to completed for historical sessions
+        )
+        start_time = db_session.created_at.isoformat() if db_session.created_at else None
+        end_time = db_session.updated_at.isoformat() if db_session.updated_at else None
         error = None
 
-    # DRY: Try to get file_count from database first
-    # Fallback to len(files) only for non-database sessions
-    file_count = len(files)  # Fallback
-    try:
-        from database import get_supabase_client
-        client = get_supabase_client()
-        if client:
-            db_session = client.table("research_sessions").select("file_count").eq("id", session_id).single().execute()
-            if db_session.data and db_session.data.get("file_count") is not None:
-                file_count = db_session.data["file_count"]  # DRY: Use DB value
-    except Exception as e:
-        logger.debug(f"Could not get file_count from DB for session {session_id}: {e}")
-        # Keep using len(files) fallback
+    # Step 2: Use database session data as single source of truth
+    subject = db_session.title or "Unknown"
+    file_count = db_session.file_count if db_session.file_count is not None else len(files_payload)
 
     return {
         "session_id": session_id,
@@ -258,7 +325,7 @@ async def get_session_state(session_id: str):
         "subject": subject,
         "start_time": start_time,
         "end_time": end_time,
-        "files": [file.dict() for file in files],
+        "files": files_payload,
         "file_count": file_count,  # DRY: Prefer DB, fallback to len(files)
         # Note: "statistics" removed - clients should call /api/session/{id}/statistics
         "error": error,
@@ -279,9 +346,7 @@ async def get_all_sessions():
         return sessions
     except Exception as e:
         logger.error(f"Error getting research sessions: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to retrieve research sessions"
-        )
+        raise HTTPException(status_code=500, detail="Failed to retrieve research sessions")
 
 
 @app.get("/api/sessions/list")
@@ -292,6 +357,7 @@ async def list_user_sessions(
     language: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
+    outputs_base: Optional[str] = None,
 ):
     """
     Get research sessions for the authenticated user with filtering options.
@@ -313,17 +379,30 @@ async def list_user_sessions(
         )
 
         # Convert to dict for JSON response
-        # DRY: Use stored file_count/total_size_bytes from database (maintained by update_session_file_stats)
+        # DRY: Use stored file_count/total_size_bytes from database
+        # (maintained by update_session_file_stats)
+        # FALLBACK: Auto-reconcile sessions that look problematic
         sessions_data = []
+        outputs_path = Path(outputs_base).resolve() if outputs_base else PROJECT_ROOT / "outputs"
+
         for session in sessions:
+            # Auto-reconcile sessions with suspicious data (FAILED status or 0 files)
+            # This corrects historical sessions that have wrong database records
+            if session.status == SessionStatusEnum.FAILED or (
+                session.file_count == 0 or session.file_count is None
+            ):
+                reconciled = await database.reconcile_session_with_filesystem(
+                    str(session.id), outputs_path, user_id
+                )
+                if reconciled:
+                    logger.info(f"🔧 Auto-reconciled session {session.id} in list view")
+                    session = reconciled  # Use corrected data
             session_dict = {
                 "id": str(session.id),
                 "user_id": str(session.user_id),
                 "title": session.title,
                 "status": (
-                    session.status.value
-                    if hasattr(session.status, "value")
-                    else session.status
+                    session.status.value if hasattr(session.status, "value") else session.status
                 ),
                 "created_at": session.created_at.isoformat(),
                 "updated_at": session.updated_at.isoformat(),
@@ -398,14 +477,11 @@ async def update_session_file_stats_endpoint(session_id: str, req: Request):
     if not success:
         raise HTTPException(status_code=500, detail="Failed to update file stats")
 
-    return {
-        "message": "File stats updated successfully",
-        "session_id": session_id
-    }
+    return {"message": "File stats updated successfully", "session_id": session_id}
 
 
 @app.post("/api/sessions/backfill-file-stats")
-async def backfill_all_file_stats(req: Request):
+async def backfill_all_file_stats(req: Request, outputs_base: Optional[str] = None):
     """
     Backfill file stats for ALL sessions with null values.
     Admin/maintenance endpoint.
@@ -426,25 +502,128 @@ async def backfill_all_file_stats(req: Request):
         updated_count = 0
         failed_count = 0
 
+        outputs_path = PROJECT_ROOT / "outputs"
+
         for session in sessions:
-            # Only update if file_count is null or 0
-            if session.file_count is None or session.file_count == 0:
-                success = await database.update_session_file_stats(str(session.id))
-                if success:
-                    updated_count += 1
-                else:
-                    failed_count += 1
+            try:
+                # Ingest drafts and recompute stats for any session that looks wrong
+                stats = await database.get_session_file_stats(str(session.id))
+                db_count = session.file_count or 0
+                agg_count = stats.get("file_count", 0)
+
+                if db_count != agg_count or db_count == 0:
+                    # Try full reconcile which also ingests missing drafts
+                    await database.reconcile_session_with_filesystem(
+                        str(session.id), outputs_path, user_id
+                    )
+                    # Recompute after reconcile
+                    stats_after = await database.get_session_file_stats(str(session.id))
+                    if (stats_after.get("file_count", 0) or 0) > 0:
+                        success = await database.update_session_file_stats(str(session.id))
+                        if success:
+                            updated_count += 1
+                        else:
+                            failed_count += 1
+            except Exception:
+                failed_count += 1
 
         return {
-            "message": f"Backfill complete",
+            "message": "Backfill complete",
             "updated": updated_count,
             "failed": failed_count,
-            "total_processed": updated_count + failed_count
+            "total_processed": updated_count + failed_count,
         }
 
     except Exception as e:
         logger.error(f"Error during backfill: {e}")
         raise HTTPException(status_code=500, detail="Backfill failed")
+
+
+@app.post("/api/sessions/{session_id}/reconcile")
+async def reconcile_session(session_id: str, req: Request, outputs_base: Optional[str] = None):
+    """
+    Trigger reconciliation for one session: ingest missing drafts, sync file stats,
+    and correct status/file_count mismatches.
+    """
+    user_id = getattr(req.state, "user_id", None)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    outputs_path = Path(outputs_base).resolve() if outputs_base else PROJECT_ROOT / "outputs"
+    reconciled = await database.reconcile_session_with_filesystem(session_id, outputs_path, user_id)
+    # Only sync DB aggregates if we actually have any drafts
+    stats = await database.get_session_file_stats(session_id)
+    if (stats.get("file_count", 0) or 0) > 0:
+        await database.update_session_file_stats(session_id)
+    return {
+        "session_id": session_id,
+        "reconciled": bool(reconciled),
+        "drafts_count": stats.get("file_count", 0),
+    }
+
+
+@app.get("/api/sessions/{session_id}/verify-file-stats")
+async def verify_file_stats(
+    session_id: str, repair: bool = False, req: Request = None, outputs_base: Optional[str] = None
+):
+    """
+    Verify DB file_count vs draft_files count. Optionally repair by running reconcile.
+    """
+    user_id = getattr(req.state, "user_id", None) if req else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    client = database.get_supabase_client()
+    if not client:
+        raise HTTPException(status_code=500, detail="Database not configured")
+
+    # Fetch research_sessions row
+    try:
+        rs = (
+            client.table("research_sessions")
+            .select("id, file_count, total_size_bytes")
+            .eq("id", session_id)
+            .single()
+            .execute()
+        )
+    except Exception:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if not rs.data:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Aggregate from drafts
+    stats = await database.get_session_file_stats(session_id)
+    db_count = rs.data.get("file_count") or 0
+    agg_count = stats.get("file_count", 0)
+
+    mismatch = db_count != agg_count
+
+    if repair and mismatch:
+        outputs_path = Path(outputs_base).resolve() if outputs_base else PROJECT_ROOT / "outputs"
+        await database.reconcile_session_with_filesystem(session_id, outputs_path, user_id)
+        # Only write DB aggregates if drafts exist
+        stats = await database.get_session_file_stats(session_id)
+        if (stats.get("file_count", 0) or 0) > 0:
+            await database.update_session_file_stats(session_id)
+        # Recompute
+        rs = (
+            client.table("research_sessions")
+            .select("id, file_count, total_size_bytes")
+            .eq("id", session_id)
+            .single()
+            .execute()
+        )
+        db_count = rs.data.get("file_count") or 0
+        agg_count = stats.get("file_count", 0)
+        mismatch = db_count != agg_count
+
+    return {
+        "session_id": session_id,
+        "db_file_count": db_count,
+        "drafts_file_count": agg_count,
+        "mismatch": mismatch,
+    }
 
 
 @app.post("/api/sessions/{session_id}/restore")
@@ -492,31 +671,49 @@ async def delete_user_session(session_id: str, req: Request):
 
 
 @app.post("/api/sessions/{session_id}/duplicate")
-async def duplicate_user_session(session_id: str, req: Request):
+async def duplicate_user_session(session_id: str, req: Request, background_tasks: BackgroundTasks):
     """
-    Duplicate a research session with same parameters.
-    Creates a new session with copied metadata but NOT files.
+    Duplicate a research session and START a new research execution.
+    Creates a new session with copied metadata and runs research with same parameters.
     """
     # Get user_id from JWT
     user_id = getattr(req.state, "user_id", None)
     if not user_id:
         raise HTTPException(status_code=401, detail="Authentication required")
 
-    # Verify session belongs to user
+    # Verify session belongs to user and get original parameters
     session = await database.get_session_by_id(session_id, user_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # Duplicate the session
+    # Extract original research parameters
+    subject = session.title
+    # Remove " (Copy)" suffix if it exists from previous duplication
+    if subject.endswith(" (Copy)"):
+        subject = subject[:-7].strip()
+
+    language = session.language or "vi"
+
+    # Duplicate the session in database
     new_session_id = await database.duplicate_session(session_id, user_id)
 
     if not new_session_id:
         raise HTTPException(status_code=500, detail="Failed to duplicate session")
 
+    logger.info(
+        f"Duplicated session {session_id} -> {new_session_id}, "
+        f"starting research with subject='{subject}', language={language}"
+    )
+
+    # CRITICAL FIX: Start research execution in background
+    # This was missing before, causing duplicated sessions to fail immediately
+    background_tasks.add_task(start_research_session, new_session_id, subject, language)
+
     return {
-        "message": "Session duplicated successfully",
+        "message": "Session duplicated and research started",
         "original_session_id": session_id,
         "new_session_id": new_session_id,
+        "websocket_url": f"/ws/{new_session_id}",
     }
 
 
@@ -532,14 +729,10 @@ async def compare_sessions(session_ids: list[str], req: Request):
         raise HTTPException(status_code=401, detail="Authentication required")
 
     if len(session_ids) < 2:
-        raise HTTPException(
-            status_code=400, detail="At least 2 sessions required for comparison"
-        )
+        raise HTTPException(status_code=400, detail="At least 2 sessions required for comparison")
 
     if len(session_ids) > 5:
-        raise HTTPException(
-            status_code=400, detail="Maximum 5 sessions can be compared at once"
-        )
+        raise HTTPException(status_code=400, detail="Maximum 5 sessions can be compared at once")
 
     try:
         # Fetch all sessions
@@ -604,6 +797,78 @@ async def download_file(session_id: str, filename: str):
     return FileResponse(path=file_path, filename=friendly_name, media_type=mime_type)
 
 
+@app.get("/api/sessions/{session_id}/logs")
+async def download_session_logs(session_id: str):
+    """
+    Download session logs file
+
+    Returns the session.log file containing all events that occurred during the research session.
+    The log file is in JSONL format (one JSON object per line).
+    """
+    try:
+        # Build log file path
+        log_file = file_manager.outputs_path / session_id / "session.log"
+
+        if not log_file.exists():
+            raise HTTPException(
+                status_code=404, detail="Log file not found. Logs may not have been generated yet."
+            )
+
+        # Return log file for download
+        return FileResponse(
+            path=log_file, filename=f"{session_id}_session.log", media_type="text/plain"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading logs for session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to download logs")
+
+
+@app.get("/api/sessions/{session_id}/logs/events")
+async def get_session_log_events(session_id: str, limit: int = 1000):
+    """
+    Get session log events as JSON array for rehydration.
+
+    Returns parsed log events from session.log file, suitable for populating
+    the frontend events array during session rehydration.
+
+    Args:
+        session_id: Session UUID
+        limit: Maximum number of events to return (default: 1000, most recent)
+    """
+    try:
+        # Build log file path
+        log_file = file_manager.outputs_path / session_id / "session.log"
+
+        if not log_file.exists():
+            # Return empty array if no logs yet (not an error for new sessions)
+            return {"events": [], "count": 0}
+
+        # Parse JSONL file and extract events
+        events = []
+        with open(log_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        event = json.loads(line)
+                        events.append(event)
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Failed to parse log line: {e}")
+                        continue
+
+        # Return most recent events up to limit
+        events = events[-limit:] if len(events) > limit else events
+
+        return {"events": events, "count": len(events), "total": len(events)}
+
+    except Exception as e:
+        logger.error(f"Error reading log events for session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to read log events")
+
+
 @app.get("/api/files/content")
 async def get_file_content(file_id: str, file_path: str, req: Request):
     """
@@ -626,9 +891,7 @@ async def get_file_content(file_id: str, file_path: str, req: Request):
         ]:
             from fastapi.responses import PlainTextResponse
 
-            return PlainTextResponse(
-                content=content.decode("utf-8"), media_type=mime_type
-            )
+            return PlainTextResponse(content=content.decode("utf-8"), media_type=mime_type)
 
         # For binary files (PDF, DOCX, images), return as binary response
         from fastapi.responses import Response
@@ -666,13 +929,9 @@ async def transfer_sessions(request_data: TransferSessionsRequest, req: Request)
         authenticated_user_id = getattr(req.state, "user_id", None)
 
         if not authenticated_user_id:
-            raise HTTPException(
-                status_code=401, detail="Unauthorized - no user ID in token"
-            )
+            raise HTTPException(status_code=401, detail="Unauthorized - no user ID in token")
 
         # Validate UUIDs format
-        import uuid
-
         try:
             uuid.UUID(request_data.old_user_id)
             uuid.UUID(request_data.new_user_id)
@@ -708,9 +967,7 @@ async def transfer_sessions(request_data: TransferSessionsRequest, req: Request)
         raise
     except Exception as e:
         logger.error(f"Session transfer error: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Session transfer failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Session transfer failed: {str(e)}")
 
 
 # Enhanced download endpoints
@@ -787,7 +1044,7 @@ async def get_session_statistics(session_id: str):
             if not session_check.data:
                 raise HTTPException(status_code=404, detail="Session not found")
             session_created_at = session_check.data.get("created_at")
-        except Exception as e:
+        except Exception:
             # If session not found or any error, return 404
             raise HTTPException(status_code=404, detail="Session not found")
     else:
@@ -804,7 +1061,7 @@ async def get_session_statistics(session_id: str):
         "total_size_bytes": db_stats["total_size_bytes"],
         "file_types": {},
         "languages": [],
-        "created_at": session_created_at  # From research_sessions table
+        "created_at": session_created_at,  # From research_sessions table
     }
 
     # OPTIONAL: Enrich with file_types/languages from filesystem
@@ -828,7 +1085,7 @@ async def get_session_statistics(session_id: str):
                         Language.ENGLISH: "English",
                         Language.VIETNAMESE: "Vietnamese",
                         Language.SPANISH: "Spanish",
-                        Language.FRENCH: "French"
+                        Language.FRENCH: "French",
                     }.get(language, language.value.capitalize())
                     languages_set.add(language_name)
 
@@ -838,7 +1095,7 @@ async def get_session_statistics(session_id: str):
         # Log but don't fail - graceful degradation
         logger.warning(
             f"Could not perform filesystem metadata enrichment for session {session_id}: {e}",
-            exc_info=True
+            exc_info=True,
         )
         # Continue with DB-only stats (file_types={}, languages=[])
 
@@ -849,9 +1106,7 @@ async def get_session_statistics(session_id: str):
 async def search_files(q: str, session_id: Optional[str] = None):
     """Search for files across sessions"""
     if not q or len(q) < 2:
-        raise HTTPException(
-            status_code=400, detail="Search query must be at least 2 characters"
-        )
+        raise HTTPException(status_code=400, detail="Search query must be at least 2 characters")
 
     results = await enhanced_file_manager.search_files(q, session_id)
     return {"query": q, "results": results, "count": len(results)}
@@ -895,29 +1150,36 @@ async def start_research_session(session_id: str, subject: str, language: str):
                     logger.error(f"Security: Invalid session_id format: {session_id}")
                     return (None, None)
 
-                actual_filename = urllib.parse.unquote(file.url.split('/')[-1])
+                actual_filename = urllib.parse.unquote(file.url.split("/")[-1])
 
                 # 2. PARSE ONCE: Get rich ParsedFilename object with all metadata
-                # Replaces multiple redundant parse calls (was: extract_file_type() + extract_language())
+                # Replaces multiple redundant parse calls
+                # (was: extract_file_type() + extract_language())
                 parsed_file: Optional[ParsedFilename] = FilenameParser.parse(actual_filename)
 
                 if not parsed_file:
-                    logger.error(f"Metadata: Could not parse standard filename format: {actual_filename}. Aborting processing.")
+                    logger.error(
+                        f"Metadata: Could not parse standard filename format: "
+                        f"{actual_filename}. Aborting processing."
+                    )
                     # Fail fast if filename doesn't match expected UUID pattern
                     # This is safer than proceeding with incomplete data
                     return (None, None)
 
-                logger.info(f"📋 File metadata: {parsed_file.original_filename} → type={parsed_file.file_type.value}, lang={parsed_file.language.value}")
+                logger.info(
+                    f"📋 File metadata: {parsed_file.original_filename} → "
+                    f"type={parsed_file.file_type.value}, lang={parsed_file.language.value}"
+                )
 
                 # 3. SECURITY: Validate path using centralized secure validator
                 resolved_path = SecurePathValidator.resolve_safe_path(
-                    OUTPUTS_BASE_DIR,
-                    session_id,
-                    parsed_file.original_filename
+                    OUTPUTS_BASE_DIR, session_id, parsed_file.original_filename
                 )
 
                 if not resolved_path:
-                    logger.error(f"Security: Path validation failed for {parsed_file.original_filename}")
+                    logger.error(
+                        f"Security: Path validation failed for {parsed_file.original_filename}"
+                    )
                     return (None, None)
 
                 # 4. DATABASE: Path is safe, proceed with DB operation
@@ -932,6 +1194,9 @@ async def start_research_session(session_id: str, subject: str, language: str):
                     # Create file_key to uniquely identify this file version
                     file_key = (parsed_file.original_filename, file.size)
 
+                    # DRY: Use centralized download URL builder (single source of truth)
+                    download_url = build_download_url(session_id, parsed_file.original_filename)
+
                     # Create and return WebSocket event with pre-computed friendly_name
                     file_event = create_file_generated_event(
                         session_id=session_id,
@@ -941,7 +1206,7 @@ async def start_research_session(session_id: str, subject: str, language: str):
                         language=parsed_file.language.value,
                         size_bytes=file.size or 0,
                         friendly_name=parsed_file.friendly_name,  # Backend is source of truth
-                        path=file.url,
+                        path=download_url,  # Proper download URL for file preview
                     )
                     return (file_key, file_event)
                 else:
@@ -983,13 +1248,16 @@ async def start_research_session(session_id: str, subject: str, language: str):
                                 logger.info(f"📄 Sent real-time event for: {file.filename}")
                                 sent_file_keys.add(processed_key)
 
-                                # MEMORY LEAK FIX: Clean up size tracking after successful processing
+                                # MEMORY LEAK FIX: Clean up size tracking after
+                                # successful processing
                                 if file.filename in last_seen_sizes:
                                     del last_seen_sizes[file.filename]
                         else:
                             # File is new or still growing - track size and wait
                             last_seen_sizes[file.filename] = file.size
-                            logger.debug(f"File {file.filename} size: {file.size} (waiting for stability)")
+                            logger.debug(
+                                f"File {file.filename} size: {file.size} (waiting for stability)"
+                            )
 
                 except Exception as e:
                     logger.error(f"Error in file watcher loop: {e}")
@@ -1001,9 +1269,7 @@ async def start_research_session(session_id: str, subject: str, language: str):
         file_watcher_task = asyncio.create_task(watch_and_send_files())
 
         # Stream CLI output through WebSocket (runs concurrently with file watcher)
-        await websocket_manager.stream_cli_output(
-            session_id, cli_executor, subject, language
-        )
+        await websocket_manager.stream_cli_output(session_id, cli_executor, subject, language)
 
         # Wait for file watcher to finish (or timeout)
         try:
@@ -1016,25 +1282,34 @@ async def start_research_session(session_id: str, subject: str, language: str):
 
         # Update session status to completed if files were generated
         # Note: Files were already sent via real-time WebSocket events above
-        if final_files and len(sent_files) > 0:
+        if final_files and sent_file_keys:
             try:
                 await database.update_research_session_status(
                     session_id, SessionStatusEnum.COMPLETED
                 )
-                logger.info(f"✅ Session {session_id} COMPLETED with {len(sent_files)} files (sent in real-time)")
+                logger.info(
+                    f"✅ Session {session_id} COMPLETED with "
+                    f"{len(sent_file_keys)} files (sent in real-time)"
+                )
             except Exception as db_error:
                 logger.error(f"Failed to update session status: {db_error}")
         else:
             logger.warning(f"⚠️ No files generated for session {session_id}")
+
+        # SAFETY NET: Ingest any missing drafts and sync DB aggregates at end-of-run
+        try:
+            outputs_path = PROJECT_ROOT / "outputs"
+            await database.ingest_missing_drafts(session_id, outputs_path)
+            await database.update_session_file_stats(session_id)
+        except Exception as end_err:
+            logger.warning(f"End-of-run sync failed for {session_id}: {end_err}")
 
     except Exception as e:
         logger.error(f"Error in research session {session_id}: {e}")
 
         # Update session status to failed in database (Story 1.3)
         try:
-            await database.update_research_session_status(
-                session_id, SessionStatusEnum.FAILED
-            )
+            await database.update_research_session_status(session_id, SessionStatusEnum.FAILED)
             logger.info(f"Updated session {session_id} to FAILED in database")
         except Exception as db_error:
             logger.error(f"Failed to update database status: {db_error}")

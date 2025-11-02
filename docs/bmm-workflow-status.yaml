@@ -1,0 +1,79 @@
+# Workflow Status Template
+# This tracks progress through phases 1-3 of the BMM methodology
+# Phase 4 (Implementation) is tracked separately in sprint-status.yaml
+
+# generated: 2025-10-31
+# project: TK9 - A deep research project powered by multi-agents system
+# project_type: software
+# project_level: 3
+# field_type: brownfield
+# workflow_path: brownfield-level-3.yaml
+
+# STATUS DEFINITIONS:
+# ==================
+# Initial Status (before completion):
+#   - required: Must be completed to progress
+#   - optional: Can be completed but not required
+#   - recommended: Strongly suggested but not required
+#   - conditional: Required only if certain conditions met (e.g., if_has_ui)
+#
+# Completion Status:
+#   - {file-path}: File created/found (e.g., "docs/product-brief.md")
+#   - skipped: Optional/conditional workflow that was skipped
+
+generated: "2025-10-31"
+project: "TK9 - A deep research project powered by multi-agents system"
+project_type: "software"
+project_level: "3"
+field_type: "brownfield"
+workflow_path: "brownfield-level-3.yaml"
+
+# RESEARCH GUIDANCE FOR AGENTS:
+# ==============================
+# The following MCP servers are available and SHOULD be used for research workflows:
+#
+# 1. ARCHON MCP SERVER (mcp__archon__*)
+#    - Personal curated knowledge base with RAG capabilities
+#    - Precisely curated, fast, and efficient
+#    - Contains project-specific documentation and patterns
+#    - Use for: Project-specific research, established patterns, curated best practices
+#
+# 2. CONTEXT7 MCP SERVER (mcp__context7__*)
+#    - Broad generic knowledge base with official documentation
+#    - Covers ALL major software libraries and frameworks
+#    - Vast coverage but less personalized
+#    - Use for: Official documentation research, framework APIs, standard library references
+#    - Tools: resolve-library-id (find library), get-library-docs (fetch docs)
+#
+# 3. SUPABASE MCP SERVER (mcp__supabase__*)
+#    - Direct access to personal Supabase database
+#    - View existing schemas, tables, and database structure
+#    - Contains existing implementations that can serve as reference
+#    - Use for: Database schema analysis, existing auth patterns, reference implementations
+#
+# RESEARCH STRATEGY:
+# - Start with Archon for curated, project-specific patterns
+# - Use Context7 for official framework/library documentation
+# - Use Supabase MCP to understand existing database structure and patterns
+# - Archon and Context7 both contain Supabase documentation, but Supabase MCP provides direct database access
+
+workflow_status:
+  # Phase 1: Analysis
+  brainstorm-project: optional
+  research: docs/research-technical-2025-10-31.md
+  product-brief: docs/product-brief-TK9-2025-10-31.md
+
+  # Phase 2: Planning
+  prd: docs/PRD.md
+  validate-prd: optional
+  create-design: docs/ux-design-specification.md
+
+  # Phase 3: Solutioning
+  architecture-review: required
+  integration-planning: required
+  create-architecture: docs/architecture.md
+  validate-architecture: optional
+  solutioning-gate-check: required
+
+  # Phase 4: Implementation
+  sprint-planning: docs/sprint-status.yaml

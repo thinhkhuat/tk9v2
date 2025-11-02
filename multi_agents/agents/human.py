@@ -41,9 +41,7 @@ class HumanAgent:
                     print(f"Error receiving human feedback: {e}", flush=True)
             # Otherwise, prompt the user for feedback in the console
             else:
-                import asyncio
-                import sys
-                
+
                 # Use async-compatible input alternative
                 try:
                     user_feedback = await self._async_input(
@@ -69,8 +67,8 @@ class HumanAgent:
                 context={
                     "layout": layout,
                     "task": task,
-                    "feedback_method": "websocket" if self.websocket else "console"
-                }
+                    "feedback_method": "websocket" if self.websocket else "console",
+                },
             )
 
         return {"human_feedback": user_feedback}
@@ -81,13 +79,13 @@ class HumanAgent:
         """
         import asyncio
         import sys
-        
+
         # Write the prompt
         sys.stdout.write(prompt)
         sys.stdout.flush()
-        
+
         # Read input asynchronously using a thread executor
         loop = asyncio.get_event_loop()
         input_text = await loop.run_in_executor(None, sys.stdin.readline)
-        
+
         return input_text.strip()

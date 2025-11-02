@@ -1,16 +1,7 @@
 # multi_agents/__init__.py
 
-from .agents import (
-    ResearchAgent,
-    WriterAgent,
-    PublisherAgent,
-    EditorAgent,
-    ChiefEditorAgent
-)
-from .memory import (
-    DraftState,
-    ResearchState
-)
+from .agents import ChiefEditorAgent, EditorAgent, PublisherAgent, ResearchAgent, WriterAgent
+from .memory import DraftState, ResearchState
 
 __all__ = [
     "ResearchAgent",
@@ -19,5 +10,5 @@ __all__ = [
     "EditorAgent",
     "ChiefEditorAgent",
     "DraftState",
-    "ResearchState"
+    "ResearchState",
 ]

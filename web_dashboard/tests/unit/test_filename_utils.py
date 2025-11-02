@@ -15,32 +15,29 @@ Author: TK9 Team
 Date: 2025-11-02
 """
 
-import pytest
-from pathlib import Path
 import sys
-from typing import Optional
+from pathlib import Path
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from filename_utils import (
+from filename_utils import (  # Convenience functions
+    FilenameParser,
     FileType,
     Language,
     ParsedFilename,
-    FilenameParser,
     SecurePathValidator,
-    # Convenience functions
-    parse_filename,
     extract_file_type,
     extract_language,
+    parse_filename,
     to_friendly_name,
     validate_safe_path,
 )
 
-
 # ============================================================================
 # Enum Tests
 # ============================================================================
+
 
 class TestFileType:
     """Test FileType enum"""
@@ -61,7 +58,10 @@ class TestFileType:
     def test_mime_type_property(self):
         """Test MIME type mapping"""
         assert FileType.PDF.mime_type == "application/pdf"
-        assert FileType.DOCX.mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        assert (
+            FileType.DOCX.mime_type
+            == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
         assert FileType.MARKDOWN.mime_type == "text/markdown"
         assert FileType.UNKNOWN.mime_type == "application/octet-stream"
 
@@ -100,6 +100,7 @@ class TestLanguage:
 # ParsedFilename Tests
 # ============================================================================
 
+
 class TestParsedFilename:
     """Test ParsedFilename dataclass"""
 
@@ -110,7 +111,7 @@ class TestParsedFilename:
             language=Language.ENGLISH,
             file_type=FileType.PDF,
             is_translated=False,
-            original_filename="72320175ea5448e7a3f5116b95532853.pdf"
+            original_filename="72320175ea5448e7a3f5116b95532853.pdf",
         )
         assert parsed.friendly_name == "research_report.pdf"
 
@@ -121,7 +122,7 @@ class TestParsedFilename:
             language=Language.VIETNAMESE,
             file_type=FileType.PDF,
             is_translated=True,
-            original_filename="72320175ea5448e7a3f5116b95532853_vi.pdf"
+            original_filename="72320175ea5448e7a3f5116b95532853_vi.pdf",
         )
         assert parsed.friendly_name == "research_report_vi.pdf"
 
@@ -132,7 +133,7 @@ class TestParsedFilename:
             language=Language.ENGLISH,
             file_type=FileType.PDF,
             is_translated=False,
-            original_filename="test.pdf"
+            original_filename="test.pdf",
         )
         assert parsed.sort_priority == 0
 
@@ -143,7 +144,7 @@ class TestParsedFilename:
             language=Language.VIETNAMESE,
             file_type=FileType.PDF,
             is_translated=True,
-            original_filename="test_vi.pdf"
+            original_filename="test_vi.pdf",
         )
         assert parsed.sort_priority == 1
 
@@ -154,7 +155,7 @@ class TestParsedFilename:
             language=Language.ENGLISH,
             file_type=FileType.PDF,
             is_translated=False,
-            original_filename="test.pdf"
+            original_filename="test.pdf",
         )
         assert parsed.extension == ".pdf"
         assert parsed.mime_type == "application/pdf"
@@ -163,6 +164,7 @@ class TestParsedFilename:
 # ============================================================================
 # FilenameParser.parse() Tests
 # ============================================================================
+
 
 class TestFilenameParserParse:
     """Test FilenameParser.parse() - Core parsing logic"""
@@ -269,14 +271,23 @@ class TestFilenameParserParse:
 # FilenameParser.extract_file_type() Tests
 # ============================================================================
 
+
 class TestFilenameParserExtractFileType:
     """Test multi-layer file type extraction"""
 
     def test_extract_from_valid_uuid_filename(self):
         """Test extraction from valid UUID filename"""
-        assert FilenameParser.extract_file_type("72320175ea5448e7a3f5116b95532853.pdf") == FileType.PDF
-        assert FilenameParser.extract_file_type("72320175ea5448e7a3f5116b95532853_vi.docx") == FileType.DOCX
-        assert FilenameParser.extract_file_type("72320175ea5448e7a3f5116b95532853.md") == FileType.MARKDOWN
+        assert (
+            FilenameParser.extract_file_type("72320175ea5448e7a3f5116b95532853.pdf") == FileType.PDF
+        )
+        assert (
+            FilenameParser.extract_file_type("72320175ea5448e7a3f5116b95532853_vi.docx")
+            == FileType.DOCX
+        )
+        assert (
+            FilenameParser.extract_file_type("72320175ea5448e7a3f5116b95532853.md")
+            == FileType.MARKDOWN
+        )
 
     def test_extract_from_simple_filename(self):
         """Test fallback to simple extension extraction"""
@@ -287,8 +298,7 @@ class TestFilenameParserExtractFileType:
     def test_extract_from_url(self):
         """Test fallback to URL extraction"""
         result = FilenameParser.extract_file_type(
-            "invalid_name",
-            "/download/session-123/72320175ea5448e7.pdf"
+            "invalid_name", "/download/session-123/72320175ea5448e7.pdf"
         )
         assert result == FileType.PDF
 
@@ -306,6 +316,7 @@ class TestFilenameParserExtractFileType:
 # FilenameParser.extract_language() Tests
 # ============================================================================
 
+
 class TestFilenameParserExtractLanguage:
     """Test language extraction"""
 
@@ -315,9 +326,18 @@ class TestFilenameParserExtractLanguage:
 
     def test_extract_translated_files(self):
         """Test translated files detect language"""
-        assert FilenameParser.extract_language("72320175ea5448e7a3f5116b95532853_vi.pdf") == Language.VIETNAMESE
-        assert FilenameParser.extract_language("72320175ea5448e7a3f5116b95532853_es.pdf") == Language.SPANISH
-        assert FilenameParser.extract_language("72320175ea5448e7a3f5116b95532853_fr.pdf") == Language.FRENCH
+        assert (
+            FilenameParser.extract_language("72320175ea5448e7a3f5116b95532853_vi.pdf")
+            == Language.VIETNAMESE
+        )
+        assert (
+            FilenameParser.extract_language("72320175ea5448e7a3f5116b95532853_es.pdf")
+            == Language.SPANISH
+        )
+        assert (
+            FilenameParser.extract_language("72320175ea5448e7a3f5116b95532853_fr.pdf")
+            == Language.FRENCH
+        )
 
     def test_extract_invalid_filename(self):
         """Test invalid filename defaults to English"""
@@ -327,6 +347,7 @@ class TestFilenameParserExtractLanguage:
 # ============================================================================
 # FilenameParser Helper Methods Tests
 # ============================================================================
+
 
 class TestFilenameParserHelpers:
     """Test helper methods"""
@@ -338,19 +359,35 @@ class TestFilenameParserHelpers:
 
     def test_get_sort_priority(self):
         """Test sort priority"""
-        assert FilenameParser.get_sort_priority("72320175ea5448e7a3f5116b95532853.pdf") == 0  # Original
-        assert FilenameParser.get_sort_priority("72320175ea5448e7a3f5116b95532853_vi.pdf") == 1  # Translated
+        assert (
+            FilenameParser.get_sort_priority("72320175ea5448e7a3f5116b95532853.pdf") == 0
+        )  # Original
+        assert (
+            FilenameParser.get_sort_priority("72320175ea5448e7a3f5116b95532853_vi.pdf") == 1
+        )  # Translated
 
     def test_to_friendly_name(self):
         """Test friendly name conversion"""
-        assert FilenameParser.to_friendly_name("72320175ea5448e7a3f5116b95532853.pdf") == "research_report.pdf"
-        assert FilenameParser.to_friendly_name("72320175ea5448e7a3f5116b95532853_vi.pdf") == "research_report_vi.pdf"
-        assert FilenameParser.to_friendly_name("72320175ea5448e7a3f5116b95532853_es.docx") == "research_report_es.docx"
+        assert (
+            FilenameParser.to_friendly_name("72320175ea5448e7a3f5116b95532853.pdf")
+            == "research_report.pdf"
+        )
+        assert (
+            FilenameParser.to_friendly_name("72320175ea5448e7a3f5116b95532853_vi.pdf")
+            == "research_report_vi.pdf"
+        )
+        assert (
+            FilenameParser.to_friendly_name("72320175ea5448e7a3f5116b95532853_es.docx")
+            == "research_report_es.docx"
+        )
 
     def test_get_mime_type(self):
         """Test MIME type detection"""
         assert FilenameParser.get_mime_type("report.pdf") == "application/pdf"
-        assert FilenameParser.get_mime_type("report.docx") == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        assert (
+            FilenameParser.get_mime_type("report.docx")
+            == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
         assert FilenameParser.get_mime_type("report.md") == "text/markdown"
 
     def test_is_valid(self):
@@ -367,12 +404,15 @@ class TestFilenameParserHelpers:
 # SecurePathValidator Tests
 # ============================================================================
 
+
 class TestSecurePathValidator:
     """Test security validation"""
 
     def test_validate_session_id_valid(self):
         """Test valid session IDs"""
-        assert SecurePathValidator.validate_session_id("550e8400-e29b-41d4-a716-446655440000") is True
+        assert (
+            SecurePathValidator.validate_session_id("550e8400-e29b-41d4-a716-446655440000") is True
+        )
         assert SecurePathValidator.validate_session_id("session_123") is True
         assert SecurePathValidator.validate_session_id("abc123def456") is True
 
@@ -460,6 +500,7 @@ class TestSecurePathValidator:
 # Convenience Functions Tests
 # ============================================================================
 
+
 class TestConvenienceFunctions:
     """Test convenience wrapper functions"""
 
@@ -493,6 +534,7 @@ class TestConvenienceFunctions:
 # ============================================================================
 # Integration Tests
 # ============================================================================
+
 
 class TestIntegration:
     """End-to-end integration tests"""
@@ -554,10 +596,7 @@ class TestIntegration:
         ]
 
         # Sort by priority then name
-        sorted_filenames = sorted(
-            filenames,
-            key=lambda f: (FilenameParser.get_sort_priority(f), f)
-        )
+        sorted_filenames = sorted(filenames, key=lambda f: (FilenameParser.get_sort_priority(f), f))
 
         # Original files should come first
         assert sorted_filenames[0] == "72320175ea5448e7a3f5116b95532853.md"

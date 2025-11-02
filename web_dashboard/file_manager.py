@@ -1,13 +1,12 @@
 import asyncio
 import logging
 import mimetypes
-import os
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
-from filename_utils import FilenameParser, SecurePathValidator
+from filename_utils import FilenameParser, build_download_url
 from models import FileInfo, ResearchSession
 
 logger = logging.getLogger(__name__)
@@ -26,7 +25,8 @@ class FileManager:
         self.downloads_path.mkdir(parents=True, exist_ok=True)
 
         # Expected output file extensions from the actual system
-        self.supported_extensions = [".pdf", ".docx", ".md"]
+        # DRY: Use single source of truth from FilenameParser
+        self.supported_extensions = set(FilenameParser.SUPPORTED_EXTENSIONS)
 
         # Note: No longer using hard-coded expected files list - using dynamic discovery
 
@@ -106,24 +106,42 @@ class FileManager:
         try:
             # Look for files with supported extensions in the root of the session directory
             for file_path in session_dir.iterdir():
-                if (
-                    file_path.is_file()
-                    and file_path.suffix.lower() in self.supported_extensions
-                ):
-                    # Use actual UUID filename (not friendly name) for uniqueness
-                    # This ensures downloads work correctly
-                    file_info = FileInfo(
-                        filename=file_path.name,  # Use UUID filename directly
-                        url=f"/download/{session_id}/{file_path.name}",  # Use actual filename in URL
-                        size=file_path.stat().st_size,
-                        created=datetime.fromtimestamp(file_path.stat().st_ctime),
-                    )
-                    files.append(file_info)
+                if file_path.is_file() and file_path.suffix.lower() in self.supported_extensions:
+                    # DRY: Use centralized FilenameParser to extract ALL file metadata
+                    parsed_file = FilenameParser.parse(file_path.name)
+
+                    if parsed_file:
+                        # Use actual filename (UUID or otherwise) for uniqueness
+                        file_info = FileInfo(
+                            filename=file_path.name,
+                            url=build_download_url(session_id, file_path.name),
+                            size=file_path.stat().st_size,
+                            created=datetime.fromtimestamp(file_path.stat().st_ctime),
+                            file_type=parsed_file.file_type.value,
+                            language=parsed_file.language.value,
+                            friendly_name=parsed_file.friendly_name,
+                        )
+                        files.append(file_info)
+                    else:
+                        # Fallback path: accept non-UUID filenames with supported extensions
+                        # Extract best-effort metadata so UI still renders files
+                        fallback_type = FilenameParser.extract_file_type(file_path.name)
+                        fallback_lang = FilenameParser.extract_language(file_path.name)
+                        friendly = FilenameParser.to_friendly_name(file_path.name)
+
+                        file_info = FileInfo(
+                            filename=file_path.name,
+                            url=build_download_url(session_id, file_path.name),
+                            size=file_path.stat().st_size,
+                            created=datetime.fromtimestamp(file_path.stat().st_ctime),
+                            file_type=fallback_type.value,
+                            language=fallback_lang.value,
+                            friendly_name=friendly,
+                        )
+                        files.append(file_info)
 
             # Sort files by type (English first, then Vietnamese) and extension
-            files.sort(
-                key=lambda f: (self.get_file_sort_priority(f.filename), f.filename)
-            )
+            files.sort(key=lambda f: (self.get_file_sort_priority(f.filename), f.filename))
 
         except Exception as e:
             logger.error(f"Error discovering files for session {session_id}: {e}")
@@ -165,9 +183,7 @@ class FileManager:
                 # For now, take the most recent directory
                 # In a production system, we'd need better session tracking
                 target_dir = output_dirs[0]
-                logger.info(
-                    f"Found output directory for session {session_id}: {target_dir}"
-                )
+                logger.info(f"Found output directory for session {session_id}: {target_dir}")
 
             if target_dir and target_dir.exists():
                 # Copy files to web static directory and create FileInfo objects
@@ -221,9 +237,7 @@ class FileManager:
                             # Remove the entire session directory
                             shutil.rmtree(session_dir)
                             cleaned_count += 1
-                            logger.info(
-                                f"Cleaned up old session directory: {session_dir.name}"
-                            )
+                            logger.info(f"Cleaned up old session directory: {session_dir.name}")
 
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")

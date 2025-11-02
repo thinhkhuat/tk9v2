@@ -2,20 +2,28 @@
 Pytest configuration and shared fixtures for the multi-agent deep research system.
 """
 
-import os
-import pytest
-import tempfile
-import shutil
-from unittest.mock import Mock, patch
-from pathlib import Path
 import asyncio
+import os
+import shutil
 
 # Add the project root to Python path
 import sys
+import tempfile
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+import pytest
+
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from multi_agents.config.providers import MultiProviderConfig, LLMConfig, SearchConfig, LLMProvider, SearchProvider
+from multi_agents.config.providers import (
+    LLMConfig,
+    LLMProvider,
+    MultiProviderConfig,
+    SearchConfig,
+    SearchProvider,
+)
 from multi_agents.providers.base import LLMResponse, SearchResponse, SearchResult
 
 
@@ -53,7 +61,7 @@ def sample_env_vars():
         "SEARCH_STRATEGY": "primary_only",
         "LLM_TEMPERATURE": "0.7",
         "LLM_MAX_TOKENS": "4000",
-        "SEARCH_MAX_RESULTS": "10"
+        "SEARCH_MAX_RESULTS": "10",
     }
 
 
@@ -72,18 +80,14 @@ def sample_llm_config():
         model="gpt-4o",
         temperature=0.7,
         max_tokens=4000,
-        api_key="sk-test_key"
+        api_key="sk-test_key",
     )
 
 
 @pytest.fixture
 def sample_search_config():
     """Sample search configuration for testing."""
-    return SearchConfig(
-        provider=SearchProvider.TAVILY,
-        max_results=10,
-        api_key="tvly-test_key"
-    )
+    return SearchConfig(provider=SearchProvider.TAVILY, max_results=10, api_key="tvly-test_key")
 
 
 @pytest.fixture
@@ -97,15 +101,13 @@ def sample_provider_config(sample_llm_config, sample_search_config):
             model="gemini-1.5-pro",
             temperature=0.7,
             max_tokens=4000,
-            api_key="test_google_key"
+            api_key="test_google_key",
         ),
         fallback_search=SearchConfig(
-            provider=SearchProvider.BRAVE,
-            max_results=10,
-            api_key="test_brave_key"
+            provider=SearchProvider.BRAVE, max_results=10, api_key="test_brave_key"
         ),
         llm_strategy="fallback_on_error",
-        search_strategy="primary_only"
+        search_strategy="primary_only",
     )
 
 
@@ -118,7 +120,7 @@ def sample_llm_response():
         provider="openai",
         tokens_used=150,
         cost=0.0123,
-        latency_ms=250
+        latency_ms=250,
     )
 
 
@@ -131,15 +133,15 @@ def sample_search_results():
             url="https://example.com/article1",
             content="This is the content of test article 1.",
             published_date="2024-01-15",
-            score=0.95
+            score=0.95,
         ),
         SearchResult(
-            title="Test Article 2", 
+            title="Test Article 2",
             url="https://example.com/article2",
             content="This is the content of test article 2.",
             published_date="2024-01-14",
-            score=0.87
-        )
+            score=0.87,
+        ),
     ]
 
 
@@ -151,7 +153,7 @@ def sample_search_response(sample_search_results):
         results=sample_search_results,
         total_results=2,
         provider="tavily",
-        search_time_ms=450
+        search_time_ms=450,
     )
 
 
@@ -165,16 +167,12 @@ def sample_task_config():
         "include_human_feedback": False,
         "follow_guidelines": True,
         "verbose": True,
-        "publish_formats": {
-            "markdown": True,
-            "pdf": True,
-            "docx": True
-        },
+        "publish_formats": {"markdown": True, "pdf": True, "docx": True},
         "guidelines": [
             "The report MUST be written in APA format",
             "Each sub section MUST include supporting sources using hyperlinks",
-            "The report MUST be factual and objective"
-        ]
+            "The report MUST be factual and objective",
+        ],
     }
 
 
@@ -217,18 +215,18 @@ def mock_tavily_response():
                 "raw_content": "Mock raw content 1",
                 "published_date": "2024-01-15T00:00:00Z",
                 "author": "Mock Author 1",
-                "score": 0.95
+                "score": 0.95,
             },
             {
                 "title": "Mock Article 2",
-                "url": "https://example.com/mock2", 
+                "url": "https://example.com/mock2",
                 "content": "Mock content 2",
                 "raw_content": "Mock raw content 2",
                 "published_date": "2024-01-14T00:00:00Z",
                 "author": "Mock Author 2",
-                "score": 0.87
-            }
-        ]
+                "score": 0.87,
+            },
+        ],
     }
 
 
@@ -240,19 +238,13 @@ def mock_brave_response():
             "original": "test query",
             "show_strict_warning": False,
             "altered": "test query",
-            "safesearch": "moderate"
+            "safesearch": "moderate",
         },
         "mixed": {
             "type": "search",
-            "main": [
-                {
-                    "type": "web",
-                    "index": 0,
-                    "all": True
-                }
-            ],
+            "main": [{"type": "web", "index": 0, "all": True}],
             "top": [],
-            "side": []
+            "side": [],
         },
         "type": "search",
         "web": {
@@ -267,7 +259,7 @@ def mock_brave_response():
                     "published": "2024-01-15T00:00:00Z",
                     "author": "Mock Author 1",
                     "language": "en",
-                    "family_friendly": True
+                    "family_friendly": True,
                 },
                 {
                     "title": "Mock Brave Article 2",
@@ -278,18 +270,18 @@ def mock_brave_response():
                     "published": "2024-01-14T00:00:00Z",
                     "author": "Mock Author 2",
                     "language": "en",
-                    "family_friendly": True
-                }
+                    "family_friendly": True,
+                },
             ],
-            "family_friendly": True
-        }
+            "family_friendly": True,
+        },
     }
 
 
 # Test utilities
 class TestUtils:
     """Utility functions for testing."""
-    
+
     @staticmethod
     def assert_llm_response_valid(response: LLMResponse):
         """Assert that an LLM response has valid structure."""
@@ -299,7 +291,7 @@ class TestUtils:
         assert response.provider is not None
         assert isinstance(response.cost, (int, float))
         assert isinstance(response.tokens_used, int)
-    
+
     @staticmethod
     def assert_search_response_valid(response: SearchResponse):
         """Assert that a search response has valid structure."""
@@ -309,7 +301,7 @@ class TestUtils:
         assert response.provider is not None
         assert isinstance(response.total_results, int)
         assert isinstance(response.search_time_ms, (int, float))
-        
+
         # Validate search results
         for result in response.results:
             assert isinstance(result, SearchResult)
@@ -327,21 +319,9 @@ def test_utils():
 # Markers for different test types
 def pytest_configure(config):
     """Configure pytest markers."""
-    config.addinivalue_line(
-        "markers", "unit: mark test as a unit test"
-    )
-    config.addinivalue_line(
-        "markers", "integration: mark test as an integration test"
-    )
-    config.addinivalue_line(
-        "markers", "e2e: mark test as an end-to-end test"
-    )
-    config.addinivalue_line(
-        "markers", "slow: mark test as slow running"
-    )
-    config.addinivalue_line(
-        "markers", "requires_api_keys: mark test as requiring real API keys"
-    )
-    config.addinivalue_line(
-        "markers", "provider_test: mark test as testing provider functionality"
-    )
+    config.addinivalue_line("markers", "unit: mark test as a unit test")
+    config.addinivalue_line("markers", "integration: mark test as an integration test")
+    config.addinivalue_line("markers", "e2e: mark test as an end-to-end test")
+    config.addinivalue_line("markers", "slow: mark test as slow running")
+    config.addinivalue_line("markers", "requires_api_keys: mark test as requiring real API keys")
+    config.addinivalue_line("markers", "provider_test: mark test as testing provider functionality")

@@ -4,7 +4,7 @@
 
 A powerful multi-agent research system built with LangGraph that orchestrates 8 specialized AI agents to conduct comprehensive research and produce professional reports in multiple formats and languages.
 
-## ✅ System Status (Oct 31, 2025)
+## ✅ System Status (Nov 1, 2025)
 - **Core Functionality**: All critical paths working correctly
 - **Error Handling**: Robust error recovery implemented
 - **Performance**: < 2 second startup, 163.4 MB memory usage
@@ -12,9 +12,10 @@ A powerful multi-agent research system built with LangGraph that orchestrates 8 
 - **Web Dashboard**: Phase 5 complete with critical file detection bug fixed
 - **File Detection**: 100% success rate (was 0% before Phase 5 fix)
 - **Agent Tracking**: 6 active agents with real-time status updates
-- **Test Coverage**: 89% pass rate across 28 comprehensive tests
+- **Test Coverage**: 60% pass rate (93/162 tests) - Provider config tests affected by recent changes, core stable
 - **Integration Quality**: Clean imports with async patterns throughout
 - **Session Management**: UUID-based tracking fully synchronized across all systems
+- **Current Development**: Epic 1.4 - Row-Level Security (RLS) policies implementation for authentication
 
 ## 🚀 Features
 
@@ -93,17 +94,18 @@ After running, you'll find in `./outputs/`:
 
 ### Prerequisites
 
-- **Python 3.13+** (verified and tested)
+- **Python 3.11+** (3.12 recommended, 3.11 fallback)
 - **API Keys** for at least one LLM and search provider
 - **Pandoc** (optional, for PDF generation)
 - **LaTeX** (optional, for high-quality PDFs)
+- **Supabase** (optional, for authentication and session storage)
 
 ### ✅ Verified Environment
 The system has been thoroughly tested and verified with:
-- **Python**: 3.13+ (recommended)
+- **Python**: 3.11.14 / 3.12+ (both supported)
 - **LangGraph**: Multi-agent orchestration
 - **FastMCP**: MCP server implementation
-- **Google Gemini**: Primary LLM provider (recommended)
+- **Google Gemini**: Primary LLM provider (recommended) - gemini-2.5-flash-preview-04-17-thinking
 - **BRAVE Search**: Primary search provider (recommended)
 
 ### Step 1: Environment Setup

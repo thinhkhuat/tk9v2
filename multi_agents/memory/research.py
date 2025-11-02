@@ -1,5 +1,5 @@
-from typing import TypedDict, List, Dict, Any, Optional, Annotated
 import operator
+from typing import Annotated, Any, Dict, List, Optional, TypedDict
 
 
 class ResearchState(TypedDict, total=False):
@@ -23,5 +23,3 @@ class ResearchState(TypedDict, total=False):
     review: Optional[str]
     translation_result: Optional[Dict[str, Any]]
     revision_count: Annotated[int, operator.add]  # Initialize to 0, increment on each revision
-
-

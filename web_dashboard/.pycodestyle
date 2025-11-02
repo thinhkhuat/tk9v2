@@ -1,0 +1,5 @@
+[pycodestyle]
+max-line-length = 100
+# E402: Module level import not at top of file
+# This is intentional - we load environment variables before importing modules that depend on them
+ignore = E402
