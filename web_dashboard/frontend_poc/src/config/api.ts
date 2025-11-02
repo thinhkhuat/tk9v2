@@ -41,16 +41,16 @@ export const WS_RECONNECT_DELAY = envToInt(import.meta.env.VITE_WS_RECONNECT_DEL
 
 /**
  * API base URL
- * Default: http://localhost:12656
+ * Default: Production domain (tk9v2.thinhkhuat.com)
  * Uses nullish coalescing (??) to only check for null/undefined, not empty strings
  */
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:12656'
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'https://tk9v2.thinhkhuat.com'
 
 /**
  * WebSocket base URL
- * Default: ws://localhost:12656
+ * Default: Production domain (tk9v2.thinhkhuat.com with secure WebSocket)
  */
-export const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL ?? 'ws://localhost:12656'
+export const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL ?? 'wss://tk9v2.thinhkhuat.com'
 
 /**
  * Configuration object for API settings

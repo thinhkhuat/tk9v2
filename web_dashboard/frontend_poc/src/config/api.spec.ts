@@ -43,13 +43,13 @@ describe('API Configuration', () => {
     it('should use default API_BASE_URL when env var is not set', () => {
       delete import.meta.env.VITE_API_BASE_URL
       const { API_BASE_URL } = require('./api')
-      expect(API_BASE_URL).toBe('http://localhost:12656')
+      expect(API_BASE_URL).toBe('https://tk9v2.thinhkhuat.com')
     })
 
     it('should use default WS_BASE_URL when env var is not set', () => {
       delete import.meta.env.VITE_WS_BASE_URL
       const { WS_BASE_URL } = require('./api')
-      expect(WS_BASE_URL).toBe('ws://localhost:12656')
+      expect(WS_BASE_URL).toBe('wss://tk9v2.thinhkhuat.com')
     })
   })
 
@@ -153,7 +153,7 @@ describe('API Configuration', () => {
     it('should handle null/undefined API_BASE_URL', () => {
       import.meta.env.VITE_API_BASE_URL = undefined
       const { API_BASE_URL } = require('./api')
-      expect(API_BASE_URL).toBe('http://localhost:12656')
+      expect(API_BASE_URL).toBe('https://tk9v2.thinhkhuat.com')
     })
   })
 
@@ -179,10 +179,10 @@ describe('API Configuration', () => {
 
       const { API_CONFIG } = require('./api')
 
-      expect(API_CONFIG.baseURL).toBe('http://localhost:12656')
+      expect(API_CONFIG.baseURL).toBe('https://tk9v2.thinhkhuat.com')
       expect(API_CONFIG.timeout).toBe(30000)
       expect(API_CONFIG.fileDownloadTimeout).toBe(60000)
-      expect(API_CONFIG.wsBaseURL).toBe('ws://localhost:12656')
+      expect(API_CONFIG.wsBaseURL).toBe('wss://tk9v2.thinhkhuat.com')
       expect(API_CONFIG.wsReconnectDelay).toBe(3000)
     })
 
