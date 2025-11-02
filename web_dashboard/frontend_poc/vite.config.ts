@@ -18,5 +18,14 @@ export default defineConfig({
       'localhost',
       '127.0.0.1'
     ]
+  },
+  preview: {
+    host: '0.0.0.0',
+    allowedHosts: [
+      '.thinhkhuat.com',
+      'tk9v2.thinhkhuat.com',
+      'localhost',
+      '127.0.0.1'
+    ]
   }
 })
