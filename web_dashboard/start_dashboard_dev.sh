@@ -74,7 +74,7 @@ print_header() {
 }
 
 print_section() {
-    echo -e "\n${BLUE}${BOLD}▶ $1${NC}"
+    echo -e "\n${BLUE}${BOLD}==> $1${NC}"
     echo -e "${BLUE}$(printf '─%.0s' {1..65})${NC}"
 }
 
