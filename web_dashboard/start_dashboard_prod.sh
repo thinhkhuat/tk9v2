@@ -219,6 +219,29 @@ find_python_command() {
     return 0
 }
 
+setup_python_venv() {
+    local python_cmd="$1"
+    local venv_dir="$SCRIPT_DIR/venv"
+
+    print_section "Python Virtual Environment Setup"
+
+    # Check if venv exists
+    if [[ -d "$venv_dir" ]] && [[ -f "$venv_dir/bin/python" ]]; then
+        print_success "Virtual environment found at: $venv_dir"
+    else
+        print_step "Creating virtual environment (required for Python 3.12+ PEP 668)..."
+        if $python_cmd -m venv "$venv_dir"; then
+            print_success "Virtual environment created"
+        else
+            print_error "Failed to create virtual environment"
+            return 1
+        fi
+    fi
+
+    # Return path to venv python
+    echo "$venv_dir/bin/python"
+}
+
 check_python_dependencies() {
     local python_cmd="$1"
     print_section "Checking Python Dependencies"
@@ -683,9 +706,19 @@ main() {
         print_info "Please install Python 3.10+ from https://python.org"
         exit 1
     fi
-    print_success "Found Python: $PYTHON_CMD"
+    print_success "Found System Python: $PYTHON_CMD"
 
-    # Step 3: Check Python dependencies
+    # Step 3: Setup virtual environment (required for Python 3.12+ PEP 668)
+    VENV_PYTHON=$(setup_python_venv "$PYTHON_CMD")
+    if [[ -z "$VENV_PYTHON" ]]; then
+        print_error "Virtual environment setup failed"
+        exit 1
+    fi
+    # Use venv python for all subsequent operations
+    PYTHON_CMD="$VENV_PYTHON"
+    print_success "Using Virtual Environment Python: $PYTHON_CMD"
+
+    # Step 4: Check Python dependencies
     if ! check_python_dependencies "$PYTHON_CMD"; then
         print_error "Python dependency check failed"
         exit 1
