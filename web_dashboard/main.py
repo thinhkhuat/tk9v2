@@ -20,22 +20,22 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import database
-from .cli_executor import CLIExecutor
+from web_dashboard import database
+from web_dashboard.cli_executor import CLIExecutor
 
 # Configuration (must be imported after load_dotenv())
-from .config import settings
-from .file_manager import FileManager
-from .file_manager_enhanced import EnhancedFileManager
-from .filename_utils import (
+from web_dashboard.config import settings
+from web_dashboard.file_manager import FileManager
+from web_dashboard.file_manager_enhanced import EnhancedFileManager
+from web_dashboard.filename_utils import (
     FilenameParser,
     Language,
     ParsedFilename,
     SecurePathValidator,
     build_download_url,
 )
-from .middleware.auth_middleware import verify_jwt_middleware
-from .models import (
+from web_dashboard.middleware.auth_middleware import verify_jwt_middleware
+from web_dashboard.models import (
     ResearchRequest,
     ResearchResponse,
     ResearchSession,
@@ -43,8 +43,8 @@ from .models import (
     SessionStatusEnum,
     TransferSessionsRequest,
 )
-from .schemas import create_file_generated_event
-from .websocket_handler import WebSocketManager
+from web_dashboard.schemas import create_file_generated_event
+from web_dashboard.websocket_handler import WebSocketManager
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
