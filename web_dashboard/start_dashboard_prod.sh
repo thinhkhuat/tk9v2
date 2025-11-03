@@ -170,6 +170,16 @@ trap cleanup SIGKILL
 # Validation Functions
 # ============================================================================
 
+check_uv_installed() {
+    print_section "Checking for UV Installation"
+    if ! command -v uv &> /dev/null; then
+        print_error "UV not found. Please install it first: https://github.com/astral-sh/uv"
+        return 1
+    fi
+    print_success "UV found: $(uv --version)"
+    return 0
+}
+
 check_directory_structure() {
     print_section "Validating Directory Structure"
 
@@ -229,11 +239,12 @@ setup_python_venv() {
     if [[ -d "$venv_dir" ]] && [[ -f "$venv_dir/bin/python" ]]; then
         print_success "Virtual environment found at: $venv_dir"
     else
-        print_step "Creating virtual environment (required for Python 3.12+ PEP 668)..."
-        if $python_cmd -m venv "$venv_dir"; then
+        print_step "Creating virtual environment with uv (uv venv)..."
+        # Use the detected system python to create the venv
+        if uv venv -p "$python_cmd" "$venv_dir"; then
             print_success "Virtual environment created"
         else
-            print_error "Failed to create virtual environment"
+            print_error "Failed to create virtual environment with uv"
             return 1
         fi
     fi
@@ -276,8 +287,8 @@ check_python_dependencies() {
             # Production mode: auto-install without prompting
             print_step "Auto-installing Python dependencies (production mode)..."
             if [[ -f "$SCRIPT_DIR/requirements.txt" ]]; then
-                $python_cmd -m pip install -q -r "$SCRIPT_DIR/requirements.txt"
-                print_success "Python dependencies installed"
+                uv pip install -q -r "$SCRIPT_DIR/requirements.txt" --python "$python_cmd"
+                print_success "Python dependencies installed with uv"
             else
                 print_error "requirements.txt not found"
                 return 1
@@ -692,7 +703,12 @@ display_access_info() {
 main() {
     print_header
 
-    # Step 1: Validate directory structure
+    # Step 1: Check for UV
+    if ! check_uv_installed; then
+        exit 1
+    fi
+
+    # Step 2: Validate directory structure
     if ! check_directory_structure; then
         print_error "Directory structure validation failed"
         exit 1
