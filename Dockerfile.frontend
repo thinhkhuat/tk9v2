@@ -12,7 +12,7 @@ WORKDIR /build
 COPY web_dashboard/frontend_poc/package*.json ./
 
 # Install all dependencies (including devDependencies for build)
-RUN npm ci
+RUN npm config set fetch-retries 5 && npm ci
 
 # Copy source code
 COPY web_dashboard/frontend_poc/ ./
