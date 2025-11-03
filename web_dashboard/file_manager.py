@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from filename_utils import FilenameParser, build_download_url
-from models import FileInfo, ResearchSession
+from .filename_utils import FilenameParser, build_download_url
+from .models import FileInfo, ResearchSession
 
 logger = logging.getLogger(__name__)
 

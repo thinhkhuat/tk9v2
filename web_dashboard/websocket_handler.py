@@ -8,7 +8,7 @@ from typing import Dict, Set
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from schemas import (
+from .schemas import (
     WebSocketEvent,
     create_agent_update_event,
     create_error_event,

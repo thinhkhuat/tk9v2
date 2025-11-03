@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 # Configuration
-from config import settings
+from .config import settings
 
 
 class ResearchRequest(BaseModel):
