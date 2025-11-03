@@ -211,19 +211,20 @@ The TK9 Deep Research MCP server is **production-ready** with all core multi-age
 ### Multi-Agent Architecture ✅
 
 **Orchestration**: LangGraph
-**Agents**: 8 specialized agents (6 active in UI)
+**Agents**: 7 active agents + Orchestrator
 
 **Active Agents**:
-1. Browser Agent - Web search and source gathering
-2. Editor Agent - Task planning and section definition
-3. Researcher Agent - Parallel research execution
-4. Writer Agent - Report synthesis
-5. Publisher Agent - Multi-format file generation
-6. Translator Agent - Multi-language translation
+1. Search Agent - Web search and source gathering
+2. Plan Agent - Task planning and section definition
+3. Research Agent - Parallel research execution
+4. Write Agent - Report synthesis
+5. Publish Agent - Multi-format file generation
+6. Translate Agent - Multi-language translation
+7. Orchestrator - Coordinates entire workflow
 
-**Inactive Agents** (removed from UI):
-7. Reviewer Agent - Quality assurance
-8. Reviser Agent - Iterative improvements
+**Disabled Agents** (quality/technical improvements):
+8. Reviewer Agent - Quality assurance (disabled)
+9. Reviser Agent - Iterative improvements (disabled)
 
 ---
 
@@ -268,17 +269,30 @@ TAVILY_API_KEY=<fallback-search>
 **Access Points**:
 - Local: http://localhost:12656
 - Internal: http://192.168.2.22:12656
-- Public: https://tk9.thinhkhuat.com (via Caddy)
+- Public v1: https://tk9.thinhkhuat.com (via Caddy)
+- Public v2: https://tk9v2.thinhkhuat.com (v2 dashboard)
 
 **Server Configuration**:
 - IP: 192.168.2.22 (NOT .222)
 - Port: 12656 (binding to 0.0.0.0)
-- Python: 3.11.14 / 3.12+
+- Python: 3.12+ (required)
 - Startup: `cd web_dashboard && ./start_dashboard.sh`
 
 **Reverse Proxy** (Caddy):
 ```caddy
+# v1 dashboard
 tk9.thinhkhuat.com {
+    encode gzip
+    @websockets {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    reverse_proxy @websockets 192.168.2.22:12656
+    reverse_proxy 192.168.2.22:12656
+}
+
+# v2 dashboard
+tk9v2.thinhkhuat.com {
     encode gzip
     @websockets {
         header Connection *Upgrade*

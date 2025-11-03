@@ -2,7 +2,7 @@
 
 🟢 **PRODUCTION READY** - Full-featured web dashboard with real-time monitoring and all critical functionality operational.
 
-A powerful multi-agent research system built with LangGraph that orchestrates 8 specialized AI agents to conduct comprehensive research and produce professional reports in multiple formats and languages.
+A powerful multi-agent research system built with LangGraph that orchestrates 7 active AI agents to conduct comprehensive research and produce professional reports in multiple formats and languages.
 
 ## ✅ System Status (Nov 1, 2025)
 - **Core Functionality**: All critical paths working correctly
@@ -11,7 +11,7 @@ A powerful multi-agent research system built with LangGraph that orchestrates 8 
 - **Provider System**: Google Gemini + BRAVE working with failover
 - **Web Dashboard**: Phase 5 complete with critical file detection bug fixed
 - **File Detection**: 100% success rate (was 0% before Phase 5 fix)
-- **Agent Tracking**: 6 active agents with real-time status updates
+- **Agent Tracking**: 7 active agents with real-time status updates
 - **Test Coverage**: 60% pass rate (93/162 tests) - Provider config tests affected by recent changes, core stable
 - **Integration Quality**: Clean imports with async patterns throughout
 - **Session Management**: UUID-based tracking fully synchronized across all systems
@@ -21,7 +21,7 @@ A powerful multi-agent research system built with LangGraph that orchestrates 8 
 
 ### Web Dashboard (Phase 5 Complete - Production Ready)
 - **Real-Time Monitoring**: Live agent status updates via WebSocket
-- **Interactive Agent Cards**: Visual representation of 6 active agents with color-coded states
+- **Interactive Agent Cards**: Visual representation of 7 active agents with color-coded states
 - **Automatic File Detection**: Generated files appear automatically after research completion (Phase 5 critical bug fix)
 - **Session Management**: UUID-based tracking with full state synchronization across all systems
 - **Responsive UI**: Built with Vue 3, TypeScript, Pinia, and Tailwind CSS
@@ -29,10 +29,11 @@ A powerful multi-agent research system built with LangGraph that orchestrates 8 
 - **Clean Interface**: Misleading stats removed, showing only actionable information
 
 ### Multi-Agent Research Workflow
-- **8 Specialized Agents**: Browser, Editor, Researcher, Writer, Publisher, Translator, Reviewer, Reviser
+- **7 Active Agents**: Search, Plan, Research, Write, Publish, Translate, Orchestrator
 - **Parallel Processing**: Multiple research sections processed simultaneously
-- **Quality Assurance**: Built-in review and revision workflows
+- **Quality Assurance**: Built-in quality control workflows
 - **Human-in-the-Loop**: Optional human feedback integration
+- **Note**: Reviewer and Reviser agents are currently disabled due to quality and technical considerations
 
 ### Advanced Translation System
 - **50+ Languages**: Support for major world languages
@@ -94,7 +95,7 @@ After running, you'll find in `./outputs/`:
 
 ### Prerequisites
 
-- **Python 3.11+** (3.12 recommended, 3.11 fallback)
+- **Python 3.12+** (required)
 - **API Keys** for at least one LLM and search provider
 - **Pandoc** (optional, for PDF generation)
 - **LaTeX** (optional, for high-quality PDFs)
@@ -102,7 +103,7 @@ After running, you'll find in `./outputs/`:
 
 ### ✅ Verified Environment
 The system has been thoroughly tested and verified with:
-- **Python**: 3.11.14 / 3.12+ (both supported)
+- **Python**: 3.12+ (required)
 - **LangGraph**: Multi-agent orchestration
 - **FastMCP**: MCP server implementation
 - **Google Gemini**: Primary LLM provider (recommended) - gemini-2.5-flash-preview-04-17-thinking
@@ -179,7 +180,8 @@ python3 main.py
 Access at:
 - **Local**: http://localhost:12656
 - **Internal Network**: http://192.168.2.22:12656
-- **Public** (if configured): https://tk9.thinhkhuat.com
+- **Public v1**: https://tk9.thinhkhuat.com
+- **Public v2**: https://tk9v2.thinhkhuat.com (v2 dashboard)
 
 Features:
 - Real-time agent status visualization
@@ -340,10 +342,14 @@ python main.py --research \
 ### Agent Workflow
 
 ```
-Browser Agent → Editor Agent → Researcher Agent (parallel) → Writer Agent 
+Search Agent → Plan Agent → Research Agent (parallel) → Write Agent
      ↓
-Publisher Agent → Translator Agent → Reviewer Agent → Reviser Agent
+Publish Agent → Translate Agent
+     ↓
+Orchestrator (coordinates entire workflow)
 ```
+
+**Note**: Reviewer and Reviser agents are currently disabled due to quality and technical improvements in progress.
 
 ### Key Components
 

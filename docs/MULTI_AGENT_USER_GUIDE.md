@@ -37,7 +37,7 @@ python main.py --research "What are the latest AI developments?"
 
 ### Prerequisites
 
-- **Python 3.11+** (required for LangGraph)
+- **Python 3.12+** (required)
 - **API Keys** for LLM and search providers
 - **Pandoc** (optional, for PDF generation)
 - **LaTeX** (optional, for high-quality PDFs)

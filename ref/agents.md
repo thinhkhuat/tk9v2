@@ -2,7 +2,9 @@
 
 ## Overview
 
-The Deep Research MCP system employs 9 specialized AI agents orchestrated through LangGraph to conduct comprehensive research. Each agent has specific responsibilities and capabilities within the research workflow.
+The Deep Research MCP system employs 7 active AI agents orchestrated through LangGraph to conduct comprehensive research. Each agent has specific responsibilities and capabilities within the research workflow.
+
+**Note**: Reviewer and Reviser agents are currently disabled due to quality and technical improvements in progress.
 
 ## Agent Architecture
 
@@ -30,8 +32,8 @@ The Deep Research MCP system employs 9 specialized AI agents orchestrated throug
 - `review_draft()`: Reviews and approves drafts
 - `finalize_report()`: Final report validation
 
-### 2. BrowserAgent
-**File**: Integrated within orchestrator  
+### 2. SearchAgent
+**File**: Integrated within orchestrator
 **Role**: Initial web research and source gathering
 
 **Key Responsibilities**:
@@ -42,8 +44,8 @@ The Deep Research MCP system employs 9 specialized AI agents orchestrated throug
 
 **Integration**: Uses configured search providers (BRAVE, Tavily, etc.)
 
-### 3. EditorAgent
-**File**: `multi_agents/agents/editor.py`  
+### 3. PlanAgent
+**File**: `multi_agents/agents/editor.py`
 **Role**: Plans report structure and detailed outline
 
 **Key Responsibilities**:
@@ -54,8 +56,8 @@ The Deep Research MCP system employs 9 specialized AI agents orchestrated throug
 
 **Output**: Structured outline with sections and subsections
 
-### 4. ResearcherAgent
-**File**: `multi_agents/agents/researcher.py`  
+### 4. ResearchAgent
+**File**: `multi_agents/agents/researcher.py`
 **Role**: Conducts detailed research on each section
 
 **Key Responsibilities**:
@@ -69,8 +71,8 @@ The Deep Research MCP system employs 9 specialized AI agents orchestrated throug
 - Citation management
 - Fact verification
 
-### 5. WriterAgent
-**File**: `multi_agents/agents/writer.py`  
+### 5. WriteAgent
+**File**: `multi_agents/agents/writer.py`
 **Role**: Compiles final report with introduction and conclusion
 
 **Key Responsibilities**:
@@ -82,8 +84,8 @@ The Deep Research MCP system employs 9 specialized AI agents orchestrated throug
 
 **Output**: Complete markdown report with proper formatting
 
-### 6. PublisherAgent
-**File**: `multi_agents/agents/publisher.py`  
+### 6. PublishAgent
+**File**: `multi_agents/agents/publisher.py`
 **Role**: Exports reports to multiple formats
 
 **Key Responsibilities**:
@@ -97,8 +99,8 @@ The Deep Research MCP system employs 9 specialized AI agents orchestrated throug
 - DOCX (Microsoft Word)
 - Markdown (source format)
 
-### 7. TranslatorAgent
-**File**: `multi_agents/agents/translator.py`  
+### 7. TranslateAgent
+**File**: `multi_agents/agents/translator.py`
 **Role**: Translates content to target languages
 
 **Key Responsibilities**:
@@ -114,43 +116,24 @@ The Deep Research MCP system employs 9 specialized AI agents orchestrated throug
 - Batch translation capability
 - Language detection
 
-### 8. ReviewerAgent
-**File**: `multi_agents/agents/reviewer.py`  
-**Role**: Quality assurance and formatting validation
+### 8. ReviewerAgent (DISABLED)
+**File**: `multi_agents/agents/reviewer.py`
+**Status**: ⚠️ Currently disabled due to quality and technical improvements
 
-**Key Responsibilities**:
-- Validates report structure and formatting
-- Checks citation accuracy
-- Ensures guideline compliance
-- Reviews translation quality
-- Identifies areas for improvement
+**Previous Role**: Quality assurance and formatting validation
 
-**Review Criteria**:
-- Content accuracy
-- Formatting consistency
-- Citation completeness
-- Language quality
-- Guideline adherence
+**Note**: This agent is temporarily disabled. Quality assurance is currently handled through alternative methods.
 
-### 9. ReviserAgent
-**File**: `multi_agents/agents/reviser.py`  
-**Role**: Final revisions and corrections
+### 9. ReviserAgent (DISABLED)
+**File**: `multi_agents/agents/reviser.py`
+**Status**: ⚠️ Currently disabled due to quality and technical improvements
 
-**Key Responsibilities**:
-- Implements reviewer feedback
-- Corrects formatting issues
-- Enhances content clarity
-- Performs final quality checks
-- Intelligent content extraction
+**Previous Role**: Final revisions and corrections
 
-**Capabilities**:
-- Markdown restoration
-- Content refinement
-- Error correction
-- Final polish
+**Note**: This agent is temporarily disabled. Revisions are currently handled through alternative methods.
 
 ### 10. HumanAgent
-**File**: `multi_agents/agents/human.py`  
+**File**: `multi_agents/agents/human.py`
 **Role**: Human-in-the-loop feedback integration
 
 **Key Responsibilities**:
@@ -175,14 +158,18 @@ All agents communicate through the `ResearchState` object which maintains:
 
 ### Workflow Coordination
 ```python
-# Workflow sequence
-Browser → Editor → Researcher → Writer → Publisher → Translator → Reviewer → Reviser
+# Active workflow sequence (7 agents)
+Search → Plan → Research → Write → Publish → Translate
+                              ↓
+                      Orchestrator (coordinates all)
 ```
 
+**Note**: Reviewer and Reviser agents are currently disabled.
+
 ### Parallel Processing
-- **Researcher Agent**: Can process multiple sections simultaneously
-- **Translator Agent**: Supports batch translation
-- **Publisher Agent**: Generates multiple formats concurrently
+- **Research Agent**: Can process multiple sections simultaneously
+- **Translate Agent**: Supports batch translation
+- **Publish Agent**: Generates multiple formats concurrently
 
 ## Agent Configuration
 

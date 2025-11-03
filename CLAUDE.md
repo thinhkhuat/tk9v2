@@ -21,8 +21,9 @@ VIOLATION: Used TodoWrite → STOP → Restart with Archon
 
 ### Critical Config
 ```
-IP: 192.168.2.22 (NOT .222) | Port: 12656 (0.0.0.0) | URL: https://tk9.thinhkhuat.com
-Python: 3.12 (primary) | 3.11 (fallback)
+IP: 192.168.2.22 (NOT .222) | Port: 12656 (0.0.0.0)
+URLs: https://tk9.thinhkhuat.com (v1) | https://tk9v2.thinhkhuat.com (v2 dashboard)
+Python: 3.12+ (required, no 3.11 support)
 Test Coverage: 60% pass rate (93 passed, 56 failed, 13 errors from 162 tests)
 ```
 
@@ -34,7 +35,7 @@ Test Coverage: 60% pass rate (93 passed, 56 failed, 13 errors from 162 tests)
 
 ## Overview
 
-🟢 **PRODUCTION READY** (89% test pass) | Deep Research MCP with 8-agent LangGraph orchestration
+🟢 **PRODUCTION READY** (60% test pass) | Deep Research MCP with 7-agent LangGraph orchestration
 
 **Components**: MCP Server (`mcp_server.py`) | Multi-Agent (`multi_agents/`) | Web Dashboard (`web_dashboard/`) | Providers (Gemini + BRAVE)
 
@@ -59,7 +60,8 @@ Test Coverage: 60% pass rate (93 passed, 56 failed, 13 errors from 162 tests)
 
 ## Architecture
 
-**Pipeline**: Browser → Editor → Researcher → Writer → Publisher → Translator → Reviewer → Reviser (LangGraph)
+**Pipeline**: Search → Plan → Research → Write → Publish → Translate (LangGraph + Orchestrator)
+**Note**: Reviewer and Reviser agents currently disabled (quality/technical improvements)
 **Components**: MCP Server (`mcp_server.py`) | Agents (`multi_agents/`) | Providers (`providers/` + `config/`) | Dashboard (`web_dashboard/`)
 **Key Files**: `orchestrator.py` (coordinator) | `memory/` (state) | `main.py` (WebSocket) | `cli_executor.py` (execution)
 
@@ -68,7 +70,7 @@ Test Coverage: 60% pass rate (93 passed, 56 failed, 13 errors from 162 tests)
 **Setup**: `uv sync` | `pip install -r multi_agents/requirements.txt`
 **MCP**: `python mcp_server.py`
 **CLI**: `python main.py [--research "query" --language vi --tone critical]`
-**Dashboard**: `cd web_dashboard && ./start_dashboard.sh` | Access: http://localhost:12656 | https://tk9.thinhkhuat.com
+**Dashboard**: `cd web_dashboard && ./start_dashboard.sh` | Access: http://localhost:12656 | https://tk9.thinhkhuat.com (v1) | https://tk9v2.thinhkhuat.com (v2)
 **Test**: `pytest tests/{unit,integration,e2e}/` | `python tests/test_providers.py`
 
 ## Config (.env)
@@ -79,13 +81,13 @@ Test Coverage: 60% pass rate (93 passed, 56 failed, 13 errors from 162 tests)
 **BRAVE**: `RETRIEVER=custom` | `RETRIEVER_ENDPOINT=https://brave-local-provider.local`
 **Lang**: `RESEARCH_LANGUAGE=vi`
 
-**Access**: Local (localhost:12656) | Internal (192.168.2.22:12656) | Public (https://tk9.thinhkhuat.com via Caddy)
+**Access**: Local (localhost:12656) | Internal (192.168.2.22:12656) | Public v1 (https://tk9.thinhkhuat.com) | Public v2 (https://tk9v2.thinhkhuat.com via Caddy)
 **Caddy**: gzip + WebSocket upgrade + reverse_proxy to 192.168.2.22:12656
 
 ## Status
 
 **Issues**: ✅ None (Phase 4 & 5 resolved) | Minor: WebSocket via proxy (use direct 192.168.2.22:12656) | Old CLI → `ARCHIVE/cli-deprecated-20251031/`
-**Notes**: Python 3.12|3.11 | IP: 192.168.2.22 (NOT .222) | Dashboard: 0.0.0.0 | CLI output: `./outputs/` | 50+ languages | SSL: .gov.vn handling
+**Notes**: Python 3.12+ required | IP: 192.168.2.22 (NOT .222) | Dashboard: 0.0.0.0 | CLI output: `./outputs/` | 50+ languages | SSL: .gov.vn handling | 7 active agents (Reviewer/Reviser disabled)
 **Current Work**: Epic 1.4 - RLS policies implementation for multi-user authentication security
 **Test Status**: 60% pass (93/162) - Provider tests affected by config changes, core functionality stable
 
