@@ -1,0 +1,78 @@
+# TK9 Deep Research MCP - Backend Dockerfile
+# FastAPI backend with Python 3.12+ and all dependencies
+
+# ============================================================================
+# Stage 1: Builder
+# ============================================================================
+FROM python:3.12-slim as builder
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    git \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Copy requirements
+COPY requirements-backend.txt ./
+
+# Create venv and install dependencies
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install -r requirements-backend.txt
+
+# ============================================================================
+# Stage 2: Runtime
+# ============================================================================
+FROM python:3.12-slim as runtime
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/opt/venv/bin:$PATH" \
+    PYTHONPATH="/app:$PYTHONPATH"
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    pandoc \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -r appgroup && useradd -r -g appgroup -d /app -s /bin/bash appuser
+
+WORKDIR /app
+
+# Copy venv from builder
+COPY --from=builder --chown=appuser:appgroup /opt/venv /opt/venv
+
+# Copy application code
+COPY --chown=appuser:appgroup multi_agents/ ./multi_agents/
+COPY --chown=appuser:appgroup web_dashboard/ ./web_dashboard/
+COPY --chown=appuser:appgroup mcp_server.py ./
+
+# Create required directories
+RUN mkdir -p /app/outputs /app/logs /app/data \
+    && chown -R appuser:appgroup /app
+
+# Health check for backend
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:12689/health || exit 1
+
+USER appuser
+
+# Expose backend port
+EXPOSE 12689
+
+# Start backend
+CMD ["python", "-m", "uvicorn", "web_dashboard.main:app", "--host", "0.0.0.0", "--port", "12689"]
