@@ -1,7 +1,7 @@
 # Local Development Override
 # Automatically merged with docker-compose.yml when running docker-compose up
 
-version: '3.8'
+version: "3.8"
 
 services:
   tk9-backend:
@@ -16,7 +16,7 @@ services:
       - PYTHONPATH=/app:/app/web_dashboard
 
     # Enable hot reload with uvicorn
-    command: ["python", "-m", "uvicorn", "web_dashboard.main:app", "--host", "0.0.0.0", "--port", "12689", "--reload"]
+    command: ["python", "web_dashboard/main.py"]
 
   tk9-frontend:
     # For development, use Vite dev server instead of nginx
@@ -26,7 +26,8 @@ services:
     # Run Vite dev server with hot reload
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "8592"]
 
-    # Mount source code for hot reload
+    # Mount source code and environment for hot reload
     volumes:
       - ./web_dashboard/frontend_poc/src:/build/src:ro
       - ./web_dashboard/frontend_poc/public:/build/public:ro
+      - ./web_dashboard/frontend_poc/.env.local:/build/.env.local:ro

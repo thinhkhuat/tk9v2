@@ -33,9 +33,9 @@ class CLIExecutor:
 
             # Build the command
             # Use multi_agents.main to avoid loading the old root main.py
+            # Direct python execution: PATH=/opt/.venv/bin:$PATH ensures correct interpreter
+            # The venv python inherently finds all packages in /opt/.venv/lib/python3.12/site-packages
             cmd = [
-                "uv",
-                "run",
                 "python",
                 "-m",
                 "multi_agents.main",

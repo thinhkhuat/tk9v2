@@ -689,26 +689,135 @@ ls -l outputs/
 
 ## Troubleshooting
 
-### Issue 1: ModuleNotFoundError in Backend
+### Issue 1: ModuleNotFoundError - langchain.docstore or google.generativeai
 
 **Symptoms**:
-```
-docker logs tk9-backend
-# ModuleNotFoundError: No module named 'langgraph'
-```
-
-**Cause**: Dependencies not installed during build
-
-**Solution**:
 ```bash
-# Rebuild with no cache
+docker logs tk9-backend
+# ModuleNotFoundError: No module named 'langchain.docstore'
+# or: ModuleNotFoundError: No module named 'google.generativeai'
+```
+
+**Root Causes** (2025-11-03 Resolution):
+
+#### Problem #1: langchain 1.0+ Removed Backward Compatibility
+
+**What Happened**:
+- UV dependency resolver installed langchain **1.0.3** (latest version)
+- langchain 1.0+ **removed** the `langchain.docstore` module (breaking change)
+- gpt-researcher and legacy code still import `from langchain.docstore.document import Document`
+
+**Evidence**:
+```bash
+# Check installed version
+docker exec tk9-backend pip list | grep "^langchain "
+# If shows 1.0.x → WRONG (breaks backward compatibility)
+# Should show 0.3.x → CORRECT (maintains langchain.docstore)
+```
+
+**Correct Fix**:
+Pin langchain to 0.3.x series in `requirements-backend-minimal.txt`:
+```python
+# Langchain ecosystem - pin to 0.3.x for backward compatibility
+# langchain 1.0+ removed langchain.docstore module (breaking change)
+langchain>=0.3.0,<1.0.0
+```
+
+#### Problem #2: Missing Old Google AI SDK
+
+**What Happened**:
+- Code imports `google.generativeai` (old SDK package name)
+- Only `google-genai` (new SDK) was installed
+- Host environment has **BOTH** SDKs for compatibility during SDK transition
+
+**Evidence**:
+```bash
+# Check installed packages
+docker exec tk9-backend pip list | grep -i "google.*genai"
+# Must have BOTH:
+# google-genai         1.47.0    ← New SDK
+# google-generativeai  0.8.4     ← Old SDK (REQUIRED for legacy imports)
+```
+
+**Correct Fix**:
+Add both SDKs in `requirements-backend-minimal.txt`:
+```python
+# LLM Providers - EXACT HOST VERSIONS
+google-genai==1.47.0              # New SDK
+google-generativeai==0.8.4        # Old SDK for legacy imports
+```
+
+#### Verification Steps
+
+**1. Check langchain version constraint**:
+```bash
+docker exec tk9-backend cat /app/requirements-backend-minimal.txt | grep "langchain"
+# Expected:
+# langchain>=0.3.0,<1.0.0
+```
+
+**2. Test langchain.docstore import**:
+```bash
+docker exec tk9-backend python -c "from langchain.docstore.document import Document; print('✓ Import works')"
+# Should print: ✓ Import works
+# Should NOT error
+```
+
+**3. Check Google AI SDKs**:
+```bash
+docker exec tk9-backend pip list | grep -E "(google-genai|google-generativeai)"
+# Must show BOTH:
+# google-genai         1.47.0
+# google-generativeai  0.8.4
+```
+
+**4. Test full import chain**:
+```bash
+docker exec tk9-backend python -c "from multi_agents.agents.researcher import ResearchAgent; print('✓ All imports OK')"
+# Should print: ✓ All imports OK
+# Warnings about missing API keys are normal (no .env in test)
+```
+
+#### Rebuild with Correct Dependencies
+
+If checks fail, rebuild with corrected requirements:
+```bash
+# 1. Update requirements-backend-minimal.txt
+nano requirements-backend-minimal.txt
+
+# Ensure these lines exist:
+# langchain>=0.3.0,<1.0.0
+# google-genai==1.47.0
+# google-generativeai==0.8.4
+
+# 2. Rebuild image
 docker-compose down
 docker-compose build --no-cache tk9-backend
 docker-compose up -d
 
-# Verify installation
-docker exec tk9-backend python -c "import langgraph; print('OK')"
+# 3. Verify fix
+docker exec tk9-backend python -c "from langchain.docstore.document import Document; print('✓ Fixed')"
 ```
+
+#### Why This Matters
+
+**Strategic Version Pinning**:
+- ❌ **WRONG**: Remove all version constraints (lets resolver pick latest)
+- ❌ **WRONG**: Pin exact versions from host (creates incompatibilities)
+- ✅ **CORRECT**: Pin major version boundaries (`>=0.3.0,<1.0.0`)
+
+**Dual SDK Support**:
+- Modern codebases often run BOTH old and new SDKs during transitions
+- Old SDK: `google-generativeai` (import `google.generativeai`)
+- New SDK: `google-genai` (import `google.genai`)
+- Both required for compatibility
+
+**Key Takeaways**:
+1. Major version bumps (0.x → 1.x) often remove deprecated APIs
+2. Check host environment for BOTH old and new SDKs
+3. Use strategic version constraints, not exact pins
+4. Always verify imports after dependency changes
+5. See Phase 6 notes in `CLAUDE.md` for full context
 
 ### Issue 2: Frontend Returns 404 on Routes
 

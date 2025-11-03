@@ -1,52 +1,94 @@
 # TK9 Deep Research MCP - Backend Dockerfile
 # FastAPI backend with Python 3.12+ and all dependencies
+# Uses UV as primary package manager (following start_dashboard_prod.sh pattern)
+#
+# ⚠️ CRITICAL - UV Package Manager & Dependency Resolution (2025-11-03):
+#
+# UV package manager behaviors:
+# - 'uv pip install': Installs into venv site-packages (traditional)
+# - 'uv run': Creates/manages isolated environments (NOT for existing venvs)
+#
+# Correct Docker Approach:
+# 1. Use direct 'python' execution (NOT 'uv run')
+#    - 'uv run' creates temporary venvs - incorrect for Docker
+#    - PATH="/opt/.venv/bin:$PATH" makes 'python' resolve to venv's interpreter
+# 2. Set VIRTUAL_ENV=/opt/.venv in runtime ENV (line 71)
+#    - Tells tools which venv is active
+#    - Prevents UV from creating temp venvs in .cache/uv/.tmpXXX/
+# 3. Strategic dependency pinning in requirements-backend-minimal.txt:
+#    - langchain>=0.3.0,<1.0.0 (NOT 1.0+: removed langchain.docstore)
+#    - google-generativeai==0.8.4 (old SDK for legacy imports)
+#    - google-genai==1.47.0 (new SDK for modern code)
+#    - langgraph (not included by gpt-researcher)
+# 4. cli_executor.py uses direct 'python' command
+#
+# See: web_dashboard/cli_executor.py:38-51 for implementation
+# See: docs/docker_deployment/DEPLOYMENT_GUIDE.md Issue #1 for troubleshooting
+# See: CLAUDE.md Phase 6 for full context
 
 # ============================================================================
 # Stage 1: Builder
 # ============================================================================
-FROM python:3.12-slim as builder
+FROM python:3.12 as builder
 
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PYTHONDONTWRITEBYTECODE=1
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     git \
+    ca-certificates \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Install uv (PRIMARY package manager - not via pip!)
+# Note: UV installs to ~/.cargo/bin by default
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    mv /root/.local/bin/uv /usr/local/bin/uv && \
+    mv /root/.local/bin/uvx /usr/local/bin/uvx
 
 WORKDIR /build
 
 # Copy requirements
 COPY requirements-backend-minimal.txt ./
 
-# Create venv and install dependencies
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-RUN pip install --upgrade pip setuptools wheel && \
-    pip install -r requirements-backend-minimal.txt
+# Create venv with uv (NOT python -m venv!) and install dependencies
+# UV standard: .venv (with dot)
+# --seed flag installs pip, setuptools, wheel in venv
+RUN uv venv -p python3.12 --seed /opt/.venv
+ENV PATH="/opt/.venv/bin:$PATH"
+# Install within activated venv context (let UV detect the venv from PATH)
+RUN . /opt/.venv/bin/activate && uv pip install -r requirements-backend-minimal.txt
 
 # ============================================================================
 # Stage 2: Runtime
 # ============================================================================
-FROM python:3.12-slim as runtime
+FROM python:3.12 as runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PATH="/opt/venv/bin:$PATH" \
-    PYTHONPATH="/app:$PYTHONPATH"
+    PATH="/opt/.venv/bin:$PATH" \
+    PYTHONPATH="/app:$PYTHONPATH" \
+    VIRTUAL_ENV="/opt/.venv"
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     pandoc \
+    texlive-latex-base \
+    texlive-fonts-recommended \
+    texlive-latex-extra \
+    lmodern \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Install UV in runtime stage (needed for cli_executor)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    mv /root/.local/bin/uv /usr/local/bin/uv && \
+    mv /root/.local/bin/uvx /usr/local/bin/uvx
 
 # Create non-root user
 RUN groupadd -r appgroup && useradd -r -g appgroup -d /app -s /bin/bash appuser
@@ -54,7 +96,7 @@ RUN groupadd -r appgroup && useradd -r -g appgroup -d /app -s /bin/bash appuser
 WORKDIR /app
 
 # Copy venv from builder
-COPY --from=builder --chown=appuser:appgroup /opt/venv /opt/venv
+COPY --from=builder --chown=appuser:appgroup /opt/.venv /opt/.venv
 
 # Copy application code
 COPY --chown=appuser:appgroup multi_agents/ ./multi_agents/
@@ -67,12 +109,13 @@ RUN mkdir -p /app/outputs /app/logs /app/data \
 
 # Health check for backend
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:12689/health || exit 1
+    CMD curl -f http://localhost:12689/api/health || exit 1
 
 USER appuser
 
 # Expose backend port
 EXPOSE 12689
 
-# Start backend
-CMD ["python", "-m", "uvicorn", "web_dashboard.main:app", "--host", "0.0.0.0", "--port", "12689"]
+# Start backend (using uvicorn directly like start_dashboard_prod.sh does)
+# Disable auto-reload to prevent WatchFiles from killing research processes
+CMD ["python", "-m", "uvicorn", "web_dashboard.main:app", "--host", "0.0.0.0", "--port", "12689", "--no-reload"]

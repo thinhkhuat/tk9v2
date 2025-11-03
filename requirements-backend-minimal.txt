@@ -1,53 +1,59 @@
-# TK9 Deep Research MCP - Backend Minimal Dependencies
-# Strategy: Pin only direct dependencies, let pip resolve transitive deps
+# TK9 Deep Research MCP - Backend Dependencies
+# Minimal working set - verified outside Docker
+#
+# ⚠️ CRITICAL DEPENDENCY NOTES (2025-11-03):
+#
+# 1. langchain Version Constraint:
+#    - MUST pin to 0.3.x series: langchain>=0.3.0,<1.0.0
+#    - langchain 1.0+ REMOVED langchain.docstore module (breaking change)
+#    - gpt-researcher imports: from langchain.docstore.document import Document
+#    - Without constraint, UV resolver installs 1.0.3 → ModuleNotFoundError
+#
+# 2. Google AI SDK Dual Support:
+#    - MUST have BOTH old and new SDKs (SDK transition period)
+#    - google-genai==1.47.0 (new SDK for modern code)
+#    - google-generativeai==0.8.4 (old SDK for legacy imports)
+#    - Code imports: import google.generativeai (old SDK name)
+#    - Without old SDK → ModuleNotFoundError
+#
+# 3. Strategic Pinning Approach:
+#    - ❌ WRONG: Remove all constraints (resolver picks breaking versions)
+#    - ❌ WRONG: Pin exact host versions (creates incompatibilities)
+#    - ✅ CORRECT: Pin major version boundaries (e.g., >=0.3.0,<1.0.0)
+#
+# See: CLAUDE.md Phase 6 for full context
+# See: docs/docker_deployment/DEPLOYMENT_GUIDE.md Issue #1 for troubleshooting
 
-# ============================================================================
-# Core Web Framework
-# ============================================================================
-fastapi==0.116.0
-uvicorn[standard]==0.35.0
-pydantic==2.11.7
-pydantic-settings==2.10.1
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+websockets>=12.0
+jinja2>=3.1.2
+python-multipart>=0.0.6
+aiofiles>=23.2.1
+pydantic>=2.5.3
+pydantic-settings>=2.1.0
+pyjwt[crypto]>=2.10.1
+supabase>=2.11.0
+python-dotenv>=1.0.0
 
-# ============================================================================
-# Multi-Agent & Research (Critical versions)
-# ============================================================================
-langgraph==0.5.2
-gpt-researcher==0.14.1
+# Multi-Agent System
+gpt-researcher>=0.14
+langgraph
+langgraph-cli
 
-# ============================================================================
-# LLM Providers
-# ============================================================================
-openai==1.93.3
-google-generativeai==0.8.5
-anthropic==0.46.0
+# Langchain ecosystem - pin to 0.3.x for backward compatibility with gpt-researcher
+# langchain 1.0+ removed langchain.docstore module (breaking change)
+langchain>=0.3.0,<1.0.0
+langchain-community
+langchain-openai
+langchain-google-genai
+langchain-text-splitters
 
-# ============================================================================
-# Web & HTTP (Essential only)
-# ============================================================================
-aiohttp==3.12.13
-requests==2.32.4
-beautifulsoup4==4.13.4
-lxml==6.0.0
-httpx==0.28.1
-websockets==15.0.1
+weasyprint
+json5
+loguru
 
-# ============================================================================
-# Document Processing (Required for PDF generation)
-# ============================================================================
-weasyprint==65.1
-python-docx==1.2.0
-
-# ============================================================================
-# Database
-# ============================================================================
-supabase==2.16.0
-sqlalchemy==2.0.41
-
-# ============================================================================
-# Utilities
-# ============================================================================
-python-dotenv==1.1.1
-loguru==0.7.3
-nest-asyncio==1.6.0
-python-multipart==0.0.20
+# LLM Providers - EXACT HOST VERSIONS
+google-genai==1.47.0
+google-generativeai==0.8.4
+anthropic==0.72.0

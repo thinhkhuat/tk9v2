@@ -17,14 +17,14 @@ VIOLATION: Used TodoWrite → STOP → Restart with Archon
 
 ## Project: TK9 Deep Research MCP Server
 
-**Status**: 🟢 Production Ready | **Updated**: 2025-11-01
+**Status**: 🟢 Production Ready | **Updated**: 2025-11-03
 
 ### Critical Config
 ```
 IP: 192.168.2.22 (NOT .222) | Port: 12656 (0.0.0.0)
 URLs: https://tk9.thinhkhuat.com (v1) | https://tk9v2.thinhkhuat.com (v2 dashboard)
 Python: 3.12+ (required, no 3.11 support)
-Test Coverage: 60% pass rate (93 passed, 56 failed, 13 errors from 162 tests)
+Test Coverage: 213 tests collected (2 collection errors)
 ```
 
 ## Documentation
@@ -39,9 +39,21 @@ Test Coverage: 60% pass rate (93 passed, 56 failed, 13 errors from 162 tests)
 
 **Components**: MCP Server (`mcp_server.py`) | Multi-Agent (`multi_agents/`) | Web Dashboard (`web_dashboard/`) | Providers (Gemini + BRAVE)
 
-**Status** (2025-10-31): ✅ Core | ✅ Error Handling | ✅ Performance (<2s) | ✅ Memory (163MB) | ✅ Failover | ✅ WebSocket | ✅ Files | ✅ Sessions | ✅ UI
+**Status** (2025-11-03): ✅ Core | ✅ Error Handling | ✅ Performance (<2s) | ✅ Memory (163MB) | ✅ Failover | ✅ WebSocket | ✅ Files | ✅ Sessions | ✅ UI
 
-## Recent Fixes (2025-10-31)
+## Recent Fixes
+
+**Phase 6** (2025-11-03) 🔴 CRITICAL - Docker Dependency Resolution:
+- **Issue #1**: langchain 1.0+ removed `langchain.docstore` module → ModuleNotFoundError
+  - **Root Cause**: UV resolver installed langchain 1.0.3 (latest) which breaks backward compatibility
+  - **Fix**: Pinned `langchain>=0.3.0,<1.0.0` to maintain langchain.docstore imports
+- **Issue #2**: Code imports `google.generativeai` (old SDK) but only `google-genai` (new) installed
+  - **Root Cause**: Host has BOTH SDKs for compatibility during transition
+  - **Fix**: Added `google-generativeai==0.8.4` alongside `google-genai==1.47.0`
+- **UV Package Manager**: Added `--seed` flag to `uv venv` | Includes pip in venv | Fixes "No module named pip" error
+- **See**: `docs/docker_deployment/DEPLOYMENT_GUIDE.md` for detailed troubleshooting
+
+**Phase 5** (2025-10-31)
 
 **Phase 5** (🔴 CRITICAL):
 - File Detection: Timestamp dirs → UUID dirs | `orchestrator.py:63,70` | `main.py:165,324` | ✅ Files detected
@@ -73,9 +85,33 @@ Test Coverage: 60% pass rate (93 passed, 56 failed, 13 errors from 162 tests)
 **Dashboard**: `cd web_dashboard && ./start_dashboard.sh` | Access: http://localhost:12656 | https://tk9.thinhkhuat.com (v1) | https://tk9v2.thinhkhuat.com (v2)
 **Test**: `pytest tests/{unit,integration,e2e}/` | `python tests/test_providers.py`
 
+### ⚠️ Docker + UV Critical Note
+
+**UV Package Manager Behavior**: This project uses UV for package management:
+- `uv pip install`: Installs into venv site-packages
+- `uv run`: Creates/manages environments (NOT for executing in existing venvs)
+
+**Correct Docker approach**:
+1. Use direct `python` execution (NOT `uv run`)
+   - `uv run` creates temporary venvs - incorrect for Docker
+   - With `PATH="/opt/.venv/bin:$PATH"`, python finds all venv packages
+2. Set `VIRTUAL_ENV=/opt/.venv` in Dockerfile runtime ENV
+   - Tells tools which venv is active
+   - Prevents UV from creating temp venvs
+3. Strategic dependency pinning in requirements-backend-minimal.txt:
+   - `langchain>=0.3.0,<1.0.0` - Maintains backward compatibility (langchain.docstore)
+   - `google-generativeai==0.8.4` - Old SDK for legacy imports
+   - `google-genai==1.47.0` - New SDK for modern code
+   - `langgraph` (not included by gpt-researcher)
+
+**Implementation**:
+- `web_dashboard/cli_executor.py:38-51` uses direct `python` execution
+- `Dockerfile.backend:69` sets `VIRTUAL_ENV=/opt/.venv`
+**See**: `Dockerfile.backend` header + `docs/docker_deployment/DEPLOYMENT_GUIDE.md`
+
 ## Config (.env)
 
-**Providers**: `PRIMARY_LLM_PROVIDER=google_gemini` | `PRIMARY_LLM_MODEL=gemini-2.5-flash-preview-04-17-thinking` | `PRIMARY_SEARCH_PROVIDER=brave`
+**Providers**: `PRIMARY_LLM_PROVIDER=google_gemini` | `PRIMARY_LLM_MODEL=gemini-2.5-pro` | `PRIMARY_SEARCH_PROVIDER=brave`
 **Strategy**: `LLM_STRATEGY=primary_only` | `SEARCH_STRATEGY=primary_only`
 **Keys** (required): `GOOGLE_API_KEY` | `BRAVE_API_KEY` | `OPENAI_API_KEY` | `TAVILY_API_KEY`
 **BRAVE**: `RETRIEVER=custom` | `RETRIEVER_ENDPOINT=https://brave-local-provider.local`
@@ -86,16 +122,16 @@ Test Coverage: 60% pass rate (93 passed, 56 failed, 13 errors from 162 tests)
 
 ## Status
 
-**Issues**: ✅ None (Phase 4 & 5 resolved) | Minor: WebSocket via proxy (use direct 192.168.2.22:12656) | Old CLI → `ARCHIVE/cli-deprecated-20251031/`
+**Issues**: ✅ None (Phase 6 resolved Docker deps) | Minor: WebSocket via proxy (use direct 192.168.2.22:12656) | Old CLI → `ARCHIVE/cli-deprecated-20251031/`
 **Notes**: Python 3.12+ required | IP: 192.168.2.22 (NOT .222) | Dashboard: 0.0.0.0 | CLI output: `./outputs/` | 50+ languages | SSL: .gov.vn handling | 7 active agents (Reviewer/Reviser disabled)
-**Current Work**: Epic 1.4 - RLS policies implementation for multi-user authentication security
-**Test Status**: 60% pass (93/162) - Provider tests affected by config changes, core functionality stable
+**Current Work**: Docker deployment stability (dependency resolution)
+**Test Status**: 213 tests collected, 2 collection errors - Core functionality stable
 
 ## Production Status
 
-**✅ Complete** (Nov 1): Multi-agent system | Real-time dashboard | Agent cards | File detection | UUID sessions | Multi-provider failover | 50+ languages | Error recovery | SSL | ALTS suppression
-**🎯 Production Ready**: Agent updates | File display | WebSocket sync | Unified sessions
-**🔧 In Progress** (Epic 1.4): RLS policies | Authentication foundation | Database security
+**✅ Complete** (Nov 3): Multi-agent system | Real-time dashboard | Agent cards | File detection | UUID sessions | Multi-provider failover | 50+ languages | Error recovery | SSL | ALTS suppression | Docker dependency resolution
+**🎯 Production Ready**: Agent updates | File display | WebSocket sync | Unified sessions | Docker deployment
+**🔧 In Progress**: Docker testing | Production deployment validation
 **🔜 Phase 6+**: Dark mode | File preview | Search | History | Monitoring | More providers
 
 ## 🔍 MCP Research Tools

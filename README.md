@@ -377,6 +377,36 @@ docker build -t deep-research-mcp .
 docker run -p 8080:8080 -v $(pwd)/.env:/app/.env deep-research-mcp
 ```
 
+**⚠️ CRITICAL - UV Package Manager & Dependencies (Updated 2025-11-03):**
+
+This project uses [UV](https://github.com/astral-sh/uv) as the primary package manager. Key behaviors:
+
+- **`uv pip install`**: Installs packages into venv's site-packages (traditional approach)
+- **`uv run`**: Creates/manages isolated environments - NOT for executing in existing venvs
+
+**Correct Docker approach:**
+- Use direct `python` execution, NOT `uv run`
+- `uv run` creates temporary venvs and should NOT be used in Docker
+- With `PATH="/opt/.venv/bin:$PATH"`, the `python` command finds all venv packages
+- Set `VIRTUAL_ENV=/opt/.venv` so tools can detect the active venv
+
+**Critical Dependency Requirements:**
+- **langchain**: MUST pin to 0.3.x (`langchain>=0.3.0,<1.0.0`)
+  - langchain 1.0+ removed `langchain.docstore` module (breaking change)
+  - Without constraint, UV resolver picks 1.0.3 → ModuleNotFoundError
+- **Google AI SDKs**: MUST have BOTH old and new SDKs
+  - `google-genai==1.47.0` (new SDK)
+  - `google-generativeai==0.8.4` (old SDK for legacy imports)
+  - Code uses old import paths that require old SDK
+
+**Implementation:**
+- `cli_executor.py` uses direct `python` execution
+- Dockerfile sets `PATH="/opt/.venv/bin:$PATH"` and `VIRTUAL_ENV=/opt/.venv`
+- Venv created with `uv venv --seed` (includes pip)
+- Strategic version pinning in `requirements-backend-minimal.txt`
+
+See `Dockerfile.backend`, `requirements-backend-minimal.txt`, and `docs/docker_deployment/DEPLOYMENT_GUIDE.md` for detailed troubleshooting.
+
 ### Docker Compose
 
 ```bash
