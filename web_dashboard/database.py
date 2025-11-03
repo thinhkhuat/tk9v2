@@ -11,7 +11,7 @@ from typing import Optional
 from dotenv import load_dotenv
 from supabase import Client, create_client
 
-from models import DraftFile, ResearchSessionDB, SessionStatusEnum
+from .models import DraftFile, ResearchSessionDB, SessionStatusEnum
 
 # Load environment variables from .env file
 # ALWAYS use web_dashboard/.env - the ONLY source of truth
