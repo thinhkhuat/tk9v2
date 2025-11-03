@@ -22,13 +22,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /build
 
 # Copy requirements
-COPY requirements-backend.txt ./
+COPY requirements-backend-minimal.txt ./
 
 # Create venv and install dependencies
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --upgrade pip setuptools wheel && \
-    pip install -r requirements-backend.txt
+    pip install -r requirements-backend-minimal.txt
 
 # ============================================================================
 # Stage 2: Runtime
