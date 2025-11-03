@@ -369,7 +369,9 @@ class TestErrorHandling:
         # Test with invalid prompt that might cause errors
         try:
             response = await provider_manager.llm_generate(
-                "", fallback=True, max_retries=1  # Empty prompt might cause errors
+                "",
+                fallback=True,
+                max_retries=1,  # Empty prompt might cause errors
             )
 
             # Should either succeed or fail gracefully

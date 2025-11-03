@@ -391,7 +391,7 @@ class TestResearchWorkflows:
             }
 
             try:
-                orchestrator = ChiefEditorAgent(task, write_to_files=True)
+                ChiefEditorAgent(task, write_to_files=True)
                 results.append(f"success_{query_suffix}")
             except Exception as e:
                 results.append(f"error_{query_suffix}_{str(e)}")
@@ -414,7 +414,7 @@ class TestResearchWorkflows:
 
     def test_configuration_validation_e2e(self, mock_env_complete, research_task_basic):
         """Test end-to-end configuration validation"""
-        orchestrator = ChiefEditorAgent(research_task_basic)
+        ChiefEditorAgent(research_task_basic)
 
         # Verify provider configuration is valid
         from multi_agents.providers.factory import enhanced_config

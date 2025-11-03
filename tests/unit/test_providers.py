@@ -292,10 +292,10 @@ class TestGeminiProvider:
             provider=LLMProvider.GOOGLE_GEMINI, model="gemini-1.5-pro", api_key="test_key"
         )
 
-        with patch("google.generativeai.configure"), patch(
-            "google.generativeai.GenerativeModel"
-        ) as mock_model_class:
-
+        with (
+            patch("google.generativeai.configure"),
+            patch("google.generativeai.GenerativeModel") as mock_model_class,
+        ):
             mock_model = Mock()
             mock_model_class.return_value = mock_model
             mock_model.generate_content.return_value = mock_gemini_response
@@ -320,16 +320,16 @@ class TestGeminiProvider:
         mock_response.text = "System prompt response"
         mock_response.usage_metadata.total_token_count = 100
 
-        with patch("google.generativeai.configure"), patch(
-            "google.generativeai.GenerativeModel"
-        ) as mock_model_class:
-
+        with (
+            patch("google.generativeai.configure"),
+            patch("google.generativeai.GenerativeModel") as mock_model_class,
+        ):
             mock_model = Mock()
             mock_model_class.return_value = mock_model
             mock_model.generate_content.return_value = mock_response
 
             provider = GeminiProvider(config)
-            response = await provider.generate("User prompt", "System instructions")
+            await provider.generate("User prompt", "System instructions")
 
             # Verify the prompt was combined correctly
             call_args = mock_model.generate_content.call_args[0][0]

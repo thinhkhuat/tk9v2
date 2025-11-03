@@ -473,7 +473,6 @@ class TranslatorAgent:
         """
         import asyncio
 
-
         # Translation endpoints with priority order (1=highest priority)
         endpoints = [
             {
@@ -625,7 +624,6 @@ class TranslatorAgent:
         """Send translation request to a single endpoint with configurable timeout"""
         import json
 
-
         endpoint_url = endpoint["url"]
         endpoint_name = endpoint["name"]
 
@@ -649,7 +647,6 @@ class TranslatorAgent:
                         total=translation_timeout
                     ),  # Configurable timeout
                 ) as response:
-
                     if response.status == 200:
                         result = await response.json()
 

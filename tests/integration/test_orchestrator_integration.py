@@ -98,7 +98,7 @@ class TestOrchestratorIntegration:
     def test_environment_variable_propagation(self, mock_env_complete):
         """Test that environment variables are properly propagated"""
         task = {"query": "test query", "report_type": "research_report"}
-        orchestrator = ChiefEditorAgent(task)
+        ChiefEditorAgent(task)
 
         # Check that GPT-Researcher environment variables are set
         expected_vars = {
@@ -119,7 +119,7 @@ class TestOrchestratorIntegration:
         from multi_agents.providers.factory import enhanced_config
 
         task = {"query": "test query", "report_type": "research_report"}
-        orchestrator = ChiefEditorAgent(task)
+        ChiefEditorAgent(task)
 
         # Verify initial providers
         current = enhanced_config.get_current_providers()
@@ -140,7 +140,7 @@ class TestOrchestratorIntegration:
         from multi_agents.providers.factory import enhanced_config
 
         task = {"query": "test query", "report_type": "research_report"}
-        orchestrator = ChiefEditorAgent(task)
+        ChiefEditorAgent(task)
 
         # Validate configuration
         validation = enhanced_config.validate_current_config()
@@ -162,7 +162,7 @@ class TestOrchestratorIntegration:
         from multi_agents.providers.factory import enhanced_config
 
         task = {"query": "test query", "report_type": "research_report"}
-        orchestrator = ChiefEditorAgent(task)
+        ChiefEditorAgent(task)
 
         # Configuration should show validation errors
         validation = enhanced_config.validate_current_config()
@@ -174,7 +174,7 @@ class TestOrchestratorIntegration:
         from multi_agents.providers.factory import enhanced_config
 
         task = {"query": "test query", "report_type": "research_report"}
-        orchestrator = ChiefEditorAgent(task)
+        ChiefEditorAgent(task)
 
         # Switch to fallback providers
         enhanced_config.switch_llm_provider(use_fallback=True)
@@ -195,7 +195,7 @@ class TestOrchestratorIntegration:
 
         def create_orchestrator():
             task = {"query": "test query", "report_type": "research_report"}
-            orch = ChiefEditorAgent(task)
+            ChiefEditorAgent(task)
             current = enhanced_config.get_current_providers()
             results.append(current["llm_provider"])
 

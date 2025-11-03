@@ -240,7 +240,7 @@ class TestMultiProviderWorkflows:
         task = {"query": "test query", "report_type": "research_report"}
 
         # Create orchestrator
-        orchestrator = ChiefEditorAgent(task)
+        ChiefEditorAgent(task)
 
         # Test that environment is properly configured
         assert os.environ.get("SMART_LLM") == "openai:gpt-4o"
@@ -252,7 +252,7 @@ class TestMultiProviderWorkflows:
         task = {"query": "test query", "report_type": "research_report"}
 
         # Create orchestrator
-        orchestrator = ChiefEditorAgent(task)
+        ChiefEditorAgent(task)
 
         # Test that environment is properly configured
         assert os.environ.get("SMART_LLM") == "google_genai:gemini-1.5-pro"
@@ -272,7 +272,7 @@ class TestMultiProviderWorkflows:
         monkeypatch.setenv("PRIMARY_LLM_PROVIDER", "invalid_provider")
 
         with pytest.raises(ValueError):
-            config_manager = ProviderConfigManager()
+            ProviderConfigManager()
 
     def test_api_key_environment_mapping(self, mock_env_gemini_brave):
         """Test that API keys are correctly mapped from environment"""

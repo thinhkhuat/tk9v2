@@ -338,7 +338,7 @@ Return only valid JSON, nothing else.
                 for i, item in enumerate(data):
                     if isinstance(item, dict):
                         # Extract key information from research results
-                        title = item.get("title", f"Research Section {i+1}")
+                        title = item.get("title", f"Research Section {i + 1}")
                         content = item.get("content", "")
                         sources = item.get("sources", [])
 
@@ -421,7 +421,7 @@ Return only valid JSON, nothing else.
                 content_str,
             )
             for i, url in enumerate(set(urls)):  # Remove duplicates
-                sources.append({"title": f"Research Source {i+1}", "url": url})
+                sources.append({"title": f"Research Source {i + 1}", "url": url})
 
             # Generate table of contents based on content structure
             if not table_of_contents or table_of_contents == "Research Report Structure":

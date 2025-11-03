@@ -177,7 +177,7 @@ def robust_get_with_fallback(
             logger.warning(f"SSL error for {url}: {e}")
 
             # On SSL error, retry with verification disabled
-            if session.verify != False:
+            if session.verify:
                 logger.info(f"Retrying {url} without SSL verification")
                 session.verify = False
                 attempts += 1

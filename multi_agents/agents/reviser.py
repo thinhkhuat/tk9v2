@@ -61,7 +61,7 @@ class ReviserAgent:
 
         # Get categorization from reviewer if available, otherwise re-categorize
         feedback_category_str = draft_state.get("feedback_category")
-        feedback_analysis = draft_state.get("feedback_analysis")
+        draft_state.get("feedback_analysis")
 
         if feedback_category_str:
             try:
@@ -72,7 +72,7 @@ class ReviserAgent:
                 # Fallback to re-categorization with error handling
                 try:
                     # feedback_category, feedback_analysis = fact_checker.categorize_feedback(review)  # DISABLED
-                    feedback_category, feedback_analysis = None, {"disabled": True}
+                    feedback_category, _feedback_analysis = None, {"disabled": True}
                     print_agent_output("🔄 Fact-checking disabled", agent="REVISOR")
                 except Exception as e:
                     print_agent_output(
@@ -80,12 +80,12 @@ class ReviserAgent:
                         agent="REVISOR",
                     )
                     feedback_category = None
-                    feedback_analysis = {"error": str(e), "fallback": True}
+                    {"error": str(e), "fallback": True}
         else:
             # Categorize the feedback with error handling
             try:
                 # feedback_category, feedback_analysis = fact_checker.categorize_feedback(review)  # DISABLED
-                feedback_category, feedback_analysis = None, {"disabled": True}
+                feedback_category, _feedback_analysis = None, {"disabled": True}
                 print_agent_output("📊 Fact-checking disabled", agent="REVISOR")
             except Exception as e:
                 print_agent_output(
@@ -93,7 +93,7 @@ class ReviserAgent:
                     agent="REVISOR",
                 )
                 feedback_category = None
-                feedback_analysis = {"error": str(e), "fallback": True}
+                {"error": str(e), "fallback": True}
 
         # Apply appropriate processing based on category - DISABLED
         if False:  # feedback_category == FeedbackCategory.FORMATTING:
@@ -416,7 +416,7 @@ Return only valid JSON, nothing else.
                 # Quality checks for extracted content
                 if self._is_valid_extracted_content(candidate, original_draft):
                     extracted_content = candidate
-                    extraction_method = f"pattern_{i+1}"
+                    extraction_method = f"pattern_{i + 1}"
                     break
 
             if extracted_content:
@@ -581,7 +581,7 @@ Return only valid JSON, nothing else.
 
         # Check for document-like characteristics
         has_sentences = len(content.split(".")) > 3
-        has_structure = any(marker in content for marker in ["#", "-", "*", "1.", "2."])
+        any(marker in content for marker in ["#", "-", "*", "1.", "2."])
         reasonable_length = 100 < len(content) < 50000
 
         return has_sentences and reasonable_length
@@ -701,7 +701,9 @@ Return only valid JSON, nothing else.
             sentence_lower = (
                 sentence.lower()
                 if isinstance(sentence, str)
-                else str(sentence).lower() if sentence else ""
+                else str(sentence).lower()
+                if sentence
+                else ""
             )
             is_style_feedback = any(keyword in sentence_lower for keyword in style_keywords)
 

@@ -94,7 +94,7 @@ async def write_md_to_pdf(text: str, path: str) -> str:
             if result.returncode == 0:
                 success = True
                 if i > 0:
-                    print(f"PDF generated using fallback method {i+1}")
+                    print(f"PDF generated using fallback method {i + 1}")
                 break
             else:
                 last_error = result.stderr

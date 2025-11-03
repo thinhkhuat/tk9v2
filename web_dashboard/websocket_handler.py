@@ -186,7 +186,6 @@ class WebSocketManager:
                 and event.get("type") == "agent_update"
                 and "payload" in event
             ):
-
                 payload = event["payload"]
 
                 # Extract and normalize agent name - ALWAYS apply mapping

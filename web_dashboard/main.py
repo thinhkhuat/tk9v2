@@ -184,7 +184,9 @@ async def get_session_status(session_id: str):
         progress=(
             100.0
             if cli_status["status"] == "completed"
-            else 50.0 if cli_status["status"] == "running" else 0.0
+            else 50.0
+            if cli_status["status"] == "running"
+            else 0.0
         ),
         files=files,
         error_message=cli_status.get("error"),

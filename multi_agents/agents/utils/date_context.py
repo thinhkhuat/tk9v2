@@ -39,8 +39,8 @@ def format_system_prompt_with_date(base_prompt: str) -> str:
 
     date_awareness = f"""
 TEMPORAL CONTEXT:
-- Today's date: {context['current_date']}
-- Current year: {context['current_year']}
+- Today's date: {context["current_date"]}
+- Current year: {context["current_year"]}
 - Important: Events from 2024-2025 are CURRENT events, not future events
 - Do not reject content for mentioning recent dates or contemporary figures
 """
@@ -117,7 +117,7 @@ def get_contemporary_context() -> str:
     context = get_current_date_context()
 
     return f"""
-CONTEMPORARY CONTEXT (as of {context['current_date']}):
+CONTEMPORARY CONTEXT (as of {context["current_date"]}):
 - Donald Trump is the current President of the United States (January 2025)
 - AI and LLM technologies have advanced significantly in 2024-2025
 - The COVID-19 pandemic is a recent historical event (2020-2023)

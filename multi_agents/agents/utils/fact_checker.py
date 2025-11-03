@@ -2,7 +2,7 @@
 Fact-Checking Utility for Reviewer and Reviser Agents
 
 This module implements a comprehensive fact-checking protocol that prevents agents
-from blocking the workflow based on unverified claims. It enforces mandatory 
+from blocking the workflow based on unverified claims. It enforces mandatory
 verification through BRAVE search before any factual corrections can be made.
 
 Key Features:
@@ -950,7 +950,7 @@ class FactChecker:
         if not safe_claim:
             return "fact check verify"  # Fallback query
 
-        safe_context = self._safe_string(context).strip() if context else ""
+        self._safe_string(context).strip() if context else ""
 
         try:
             # Extract key entities and dates from the claim
@@ -1216,7 +1216,7 @@ class FactChecker:
                 error_message="Invalid search results format",
             )
 
-        claim_lower = self._safe_lower(safe_claim)
+        self._safe_lower(safe_claim)
 
         for result in search_results:
             if not isinstance(result, dict):

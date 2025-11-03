@@ -223,7 +223,7 @@ class TestMainCLI:
         with pytest.raises(SystemExit):
             parser.parse_args(["--help"])
 
-        help_output = captured_output["stdout"].getvalue()
+        captured_output["stdout"].getvalue()
         # Help should be captured or SystemExit should be raised
 
         # Test provider help
@@ -408,7 +408,7 @@ class TestMainCLI:
         start_time = time.time()
 
         for _ in range(100):
-            args = parser.parse_args(["providers", "status"])
+            parser.parse_args(["providers", "status"])
 
         parsing_time = time.time() - start_time
 

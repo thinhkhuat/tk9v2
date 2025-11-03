@@ -127,7 +127,7 @@ class CustomRetriever:
             # Handle async/sync boundary
             try:
                 # Check if we're in an async context
-                loop = asyncio.get_running_loop()
+                asyncio.get_running_loop()
                 # Create new event loop in thread
                 import concurrent.futures
 

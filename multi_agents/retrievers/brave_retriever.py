@@ -146,7 +146,7 @@ class BraveRetriever:
             # Handle the async/sync boundary
             try:
                 # Try to get the current event loop
-                loop = asyncio.get_running_loop()
+                asyncio.get_running_loop()
                 # If we're in an async context, create a new thread
                 import concurrent.futures
 

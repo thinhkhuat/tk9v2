@@ -250,7 +250,6 @@ class TestWorkflowContentFlow:
             compiled = workflow.compile()
 
             # Find translator node connections
-            translator_connections = []
             for node_name, node in compiled.nodes.items():
                 if node_name == "translator":
                     # Check what nodes this connects to
@@ -267,7 +266,7 @@ class TestWorkflowContentFlow:
 
             agents = orchestrator._initialize_agents()
             workflow = orchestrator._create_workflow(agents)
-            compiled = workflow.compile()
+            workflow.compile()
 
             # Verify translator doesn't connect to reviewer or reviser
             # The workflow should be: publisher -> translator -> END
@@ -394,11 +393,11 @@ class TestStateManagement:
 
     def test_draft_manager_integration(self):
         """Test integration with draft manager"""
-        translator = TranslatorAgent(draft_manager=self.draft_manager)
+        TranslatorAgent(draft_manager=self.draft_manager)
 
         # Test that draft manager methods are called properly
         with patch.object(self.draft_manager, "save_agent_output") as mock_save:
-            with patch.object(self.draft_manager, "save_research_state") as mock_state:
+            with patch.object(self.draft_manager, "save_research_state"):
                 # Mock translation process
                 translation_result = {
                     "status": "success",
@@ -497,7 +496,6 @@ class TestFileOutputValidation:
         with patch("multi_agents.agents.utils.file_formats.write_text_to_md") as mock_md:
             with patch("multi_agents.agents.utils.file_formats.write_md_to_pdf") as mock_pdf:
                 with patch("multi_agents.agents.utils.file_formats.write_md_to_word") as mock_docx:
-
                     # Setup return paths
                     mock_md.return_value = os.path.join(self.temp_dir, "temp.md")
                     mock_pdf.return_value = os.path.join(self.temp_dir, "temp.pdf")

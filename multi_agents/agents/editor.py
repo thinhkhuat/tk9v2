@@ -194,7 +194,7 @@ class EditorAgent:
         :param research_state: Dictionary containing research state information
         :return: Dictionary with research results
         """
-        agents = self._initialize_agents()
+        self._initialize_agents()
         workflow = self._create_workflow()
         chain = workflow.compile()
 

@@ -268,7 +268,9 @@ class TestProviderConfigManager:
         # Create invalid config with missing API key
         invalid_config = ProviderConfig(
             primary_llm=LLMConfig(
-                provider="openai", model="gpt-4o", api_key=None  # Invalid: missing API key
+                provider="openai",
+                model="gpt-4o",
+                api_key=None,  # Invalid: missing API key
             ),
             primary_search=SearchConfig(provider="tavily", api_key="valid_key"),
             llm_strategy="primary_only",

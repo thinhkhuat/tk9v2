@@ -73,12 +73,12 @@ class BraveToGPTResearcherConverter:
                     # Only add results with valid URL and content
                     if url and content:
                         gpt_results.append(gpt_result)
-                        logger.debug(f"Converted result {idx+1}: {url[:50]}...")
+                        logger.debug(f"Converted result {idx + 1}: {url[:50]}...")
                     else:
-                        logger.warning(f"Skipping result {idx+1}: missing URL or content")
+                        logger.warning(f"Skipping result {idx + 1}: missing URL or content")
 
                 except Exception as e:
-                    logger.error(f"Error converting result {idx+1}: {e}")
+                    logger.error(f"Error converting result {idx + 1}: {e}")
                     continue
 
             logger.info(f"Converted {len(gpt_results)} BRAVE results to GPT-researcher format")
@@ -139,10 +139,10 @@ class BraveToGPTResearcherConverter:
                     if url and content:
                         gpt_results.append(gpt_result)
                     else:
-                        logger.warning(f"Skipping invalid result {idx+1}")
+                        logger.warning(f"Skipping invalid result {idx + 1}")
 
                 except Exception as e:
-                    logger.error(f"Error processing result {idx+1}: {e}")
+                    logger.error(f"Error processing result {idx + 1}: {e}")
                     continue
 
             return gpt_results

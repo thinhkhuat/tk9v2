@@ -102,7 +102,6 @@ class EnhancedBraveSearchProvider(EnhancedBaseSearchProvider):
                 async with aiohttp.ClientSession(
                     connector=connector, timeout=aiohttp.ClientTimeout(total=self.request_timeout)
                 ) as session:
-
                     headers = {
                         "X-Subscription-Token": self.api_key,
                         "Accept": "application/json",
@@ -112,7 +111,6 @@ class EnhancedBraveSearchProvider(EnhancedBaseSearchProvider):
                     }
 
                     async with session.get(endpoint, params=params, headers=headers) as response:
-
                         # Handle different HTTP status codes
                         if response.status == 200:
                             data = await response.json()
@@ -486,7 +484,7 @@ class EnhancedBraveSearchProvider(EnhancedBaseSearchProvider):
             wait_until_reset = self.daily_reset_time - now
             if wait_until_reset > 0:
                 logger.warning(
-                    f"Daily request limit reached, waiting {wait_until_reset/3600:.1f} hours"
+                    f"Daily request limit reached, waiting {wait_until_reset / 3600:.1f} hours"
                 )
                 raise SearchProviderError(
                     f"Daily request limit ({self.daily_request_limit}) exceeded",

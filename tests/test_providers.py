@@ -29,7 +29,7 @@ def test_provider_configuration():
         task = {"query": "Configuration test", "report_type": "research_report", "language": "en"}
 
         print("  Creating ChiefEditorAgent...")
-        orchestrator = ChiefEditorAgent(task, write_to_files=False)
+        ChiefEditorAgent(task, write_to_files=False)
         print("  ✅ Success! Check the PROVIDERS line above.")
 
     except Exception as e:

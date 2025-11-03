@@ -221,16 +221,16 @@ class DashboardTester:
                     if "/download/" in url:
                         start_time = time.time()
                         response = await self.client.get(url)
-                        response_time = time.time() - start_time
+                        time.time() - start_time
 
                         if response.status_code == 200:
                             # Validate MIME type
-                            content_type = response.headers.get("content-type", "")
+                            response.headers.get("content-type", "")
                             content_length = len(response.content)
 
                             # Check for attachment header
                             content_disposition = response.headers.get("content-disposition", "")
-                            has_attachment = "attachment" in content_disposition.lower()
+                            "attachment" in content_disposition.lower()
 
                             download_results.append(
                                 f"{file_info['filename']}: OK ({content_length} bytes)"
@@ -367,7 +367,7 @@ class DashboardTester:
         report_lines.append(f"  Passed: {passed_tests}")
         report_lines.append(f"  Failed: {failed_tests}")
         report_lines.append(
-            f"  Success Rate: {(passed_tests/total_tests*100) if total_tests > 0 else 0:.1f}%"
+            f"  Success Rate: {(passed_tests / total_tests * 100) if total_tests > 0 else 0:.1f}%"
         )
         report_lines.append("")
 

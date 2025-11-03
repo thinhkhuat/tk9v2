@@ -88,13 +88,6 @@ async def test_rls_enabled_on_tables(supabase_client):
 
     Uses pg_tables system catalog to check rowsecurity column.
     """
-    query = """
-        SELECT tablename, rowsecurity
-        FROM pg_tables
-        WHERE tablename IN ('users', 'research_sessions', 'draft_files')
-        AND schemaname = 'public'
-        ORDER BY tablename
-    """
 
     # Execute verification query
     # Note: Actual RLS enforcement is tested via behavior in other tests
@@ -136,10 +129,10 @@ async def test_users_table_select_policy_other_record(supabase_client, test_user
     This test documents the expected RLS behavior.
     """
     user_a_id = test_users["user_a"]["id"]
-    user_b_id = test_users["user_b"]["id"]
+    test_users["user_b"]["id"]
 
     # Service role sees all (documenting expected behavior with user JWTs)
-    result = supabase_client.table("users").select("*").eq("id", user_a_id).execute()
+    supabase_client.table("users").select("*").eq("id", user_a_id).execute()
 
     # With user JWT context (user_b authenticated), this would return empty
     # For now, we verify the policy exists via pg_policies in other tests
@@ -190,7 +183,7 @@ async def test_research_sessions_select_policy_other_sessions(supabase_client, t
     With RLS, User B would get empty result even if they know User A's user_id.
     """
     user_a_id = test_users["user_a"]["id"]
-    user_b_id = test_users["user_b"]["id"]
+    test_users["user_b"]["id"]
 
     # Create session for User A
     session_response = (
@@ -260,8 +253,8 @@ async def test_research_sessions_insert_policy_different_user_id(supabase_client
 
     Note: Service role bypasses RLS, so we document expected behavior.
     """
-    user_a_id = test_users["user_a"]["id"]
-    user_b_id = test_users["user_b"]["id"]
+    test_users["user_a"]["id"]
+    test_users["user_b"]["id"]
 
     # Service role can insert with any user_id (testing context)
     # With User B's JWT, attempting to insert with user_id = user_a_id would raise permission error
@@ -314,7 +307,7 @@ async def test_research_sessions_update_policy_other_session(supabase_client, te
     With RLS UPDATE policy, User B would get 0 rows affected (not permission error).
     """
     user_a_id = test_users["user_a"]["id"]
-    user_b_id = test_users["user_b"]["id"]
+    test_users["user_b"]["id"]
 
     # Create session for User A
     session_response = (
@@ -398,7 +391,7 @@ async def test_draft_files_select_policy_other_session_drafts(supabase_client, t
     With RLS subquery policy, User B would get empty result.
     """
     user_a_id = test_users["user_a"]["id"]
-    user_b_id = test_users["user_b"]["id"]
+    test_users["user_b"]["id"]
 
     # Create session for User A
     session_response = (
@@ -428,7 +421,7 @@ async def test_draft_files_select_policy_other_session_drafts(supabase_client, t
         .execute()
     )
 
-    draft_id = draft_response.data[0]["id"]
+    draft_response.data[0]["id"]
 
     # Service role can see all drafts
     # With User B's JWT, querying drafts WHERE session_id = session_id returns []
@@ -476,7 +469,7 @@ async def test_multi_user_complete_isolation(supabase_client, test_users):
     )
 
     # User A creates draft
-    draft_a = (
+    (
         supabase_client.table("draft_files")
         .insert(
             {
@@ -500,7 +493,7 @@ async def test_multi_user_complete_isolation(supabase_client, test_users):
     )
 
     # User B creates draft
-    draft_b = (
+    (
         supabase_client.table("draft_files")
         .insert(
             {

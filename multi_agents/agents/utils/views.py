@@ -71,7 +71,10 @@ def print_agent_output(output: str, agent: str = "RESEARCHER"):
     # Auto-convert to JSON if enabled
     if os.getenv("ENABLE_JSON_OUTPUT", "").lower() == "true":
         print_structured_output(
-            message=output, agent=agent, status="running", progress=None  # No artificial progress
+            message=output,
+            agent=agent,
+            status="running",
+            progress=None,  # No artificial progress
         )
         return
 

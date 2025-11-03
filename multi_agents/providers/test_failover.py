@@ -209,7 +209,7 @@ class TestEnhancedProviderManager:
         self.manager.register_llm_provider("primary", provider, is_primary=True)
 
         # This should succeed after retries without failover
-        response = await self.manager.llm_generate("test prompt", max_retries=3)
+        await self.manager.llm_generate("test prompt", max_retries=3)
         assert provider.call_count >= 2
 
     @pytest.mark.asyncio
@@ -302,13 +302,13 @@ class TestEnhancedProviderManager:
 
         # Enable monitoring
         self.manager.enable_monitoring()
-        assert self.manager._monitoring_enabled == True
+        assert self.manager._monitoring_enabled
 
         # Cleanup
         await self.manager.cleanup()
 
         # Monitoring should be disabled
-        assert self.manager._monitoring_enabled == False
+        assert not self.manager._monitoring_enabled
 
 
 class TestFailoverIntegration:
@@ -320,14 +320,14 @@ class TestFailoverIntegration:
         async with managed_failover_system(enable_monitoring=False) as (integration, success):
             # Integration should be initialized
             if success:
-                assert integration.is_initialized == True
-                assert integration.fallback_mode == False
+                assert integration.is_initialized
+                assert not integration.fallback_mode
             else:
                 # If initialization failed, should be in fallback mode
-                assert integration.fallback_mode == True
+                assert integration.fallback_mode
 
         # After context exit, should be cleaned up
-        assert integration.is_initialized == False
+        assert not integration.is_initialized
 
     @pytest.mark.asyncio
     async def test_integration_llm_response(self):
@@ -390,7 +390,7 @@ class TestRaceConditions:
         results = await asyncio.gather(*tasks)
 
         # All should return the same result
-        assert all(r == True for r in results)
+        assert all(r for r in results)
 
     @pytest.mark.asyncio
     async def test_failover_under_load(self):
@@ -470,7 +470,7 @@ class TestErrorRecovery:
         manager = EnhancedProviderManager()
         manager.register_llm_provider("primary", provider, is_primary=True)
 
-        start_time = time.time()
+        time.time()
         await manager.llm_generate("test", max_retries=3, fallback=False)
 
         # Should have increasing delays between calls

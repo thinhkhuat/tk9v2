@@ -82,7 +82,7 @@ If you think the article is sufficient or that non critical revisions are requir
                 original_draft, draft_state.get("draft", "")
             )
 
-            review_prompt = f"""You are reviewing a TRANSLATED research report from English to {task.get('language', 'target language')}.
+            review_prompt = f"""You are reviewing a TRANSLATED research report from English to {task.get("language", "target language")}.
 
 CONTEXT: This is {current_year} content. References to 2024-2025 events are CURRENT, not future.
 
@@ -94,13 +94,13 @@ COMPREHENSIVE TRANSLATION QUALITY EVALUATION:
    - No content omissions or additions?
 
 2. **Formatting Preservation** (CRITICAL):
-   - Headings (# ## ### ####): {formatting_analysis['headings_preserved']}
-   - Lists (bullet points, numbered): {formatting_analysis['lists_preserved']} 
-   - Tables structure: {formatting_analysis['tables_preserved']}
-   - Code blocks and inline code: {formatting_analysis['code_preserved']}
-   - Links and references: {formatting_analysis['links_preserved']}
-   - Bold/italic emphasis: {formatting_analysis['emphasis_preserved']}
-   - Line breaks and paragraphs: {formatting_analysis['structure_preserved']}
+   - Headings (# ## ### ####): {formatting_analysis["headings_preserved"]}
+   - Lists (bullet points, numbered): {formatting_analysis["lists_preserved"]} 
+   - Tables structure: {formatting_analysis["tables_preserved"]}
+   - Code blocks and inline code: {formatting_analysis["code_preserved"]}
+   - Links and references: {formatting_analysis["links_preserved"]}
+   - Bold/italic emphasis: {formatting_analysis["emphasis_preserved"]}
+   - Line breaks and paragraphs: {formatting_analysis["structure_preserved"]}
 
 3. **Language Quality**:
    - Natural fluency in target language
@@ -113,7 +113,7 @@ COMPREHENSIVE TRANSLATION QUALITY EVALUATION:
    - Cross-references intact
    - Citations and footnotes preserved
 
-FORMATTING ISSUES DETECTED: {formatting_analysis['issues']}
+FORMATTING ISSUES DETECTED: {formatting_analysis["issues"]}
 
 Original Guidelines: {guidelines}
 
@@ -526,7 +526,7 @@ Guidelines: {guidelines}\nDraft: {safe_dict_get(draft_state, "draft", "")}\n
                 f"❌ {len(problematic_headings)} problematic headings detected"
             )
             analysis["issues"].append(
-                f'Long paragraphs incorrectly marked as headings: {", ".join(problematic_headings[:3])}{"..." if len(problematic_headings) > 3 else ""}'
+                f"Long paragraphs incorrectly marked as headings: {', '.join(problematic_headings[:3])}{'...' if len(problematic_headings) > 3 else ''}"
             )
         elif len(original_headings) != len(translated_headings):
             analysis["headings_preserved"] = (

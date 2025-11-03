@@ -434,7 +434,7 @@ if __name__ == "__main__":
     ]
 
     for i, text in enumerate(test_texts):
-        print(f"\n--- Test {i+1}: {len(text)} characters ---")
+        print(f"\n--- Test {i + 1}: {len(text)} characters ---")
         is_valid, result = fixer.validate_text_for_processing(text)
         print(f"Valid: {is_valid}")
 
@@ -442,6 +442,6 @@ if __name__ == "__main__":
             chunks = fixer.safe_text_split(result)
             print(f"Chunks created: {len(chunks)}")
             for j, chunk in enumerate(chunks[:3]):  # Show first 3 chunks
-                print(f"  Chunk {j+1}: {len(chunk)} chars - {chunk[:50]}...")
+                print(f"  Chunk {j + 1}: {len(chunk)} chars - {chunk[:50]}...")
         else:
             print(f"Error: {result}")

@@ -226,7 +226,6 @@ class EnhancedBaseLLMProvider(ABC):
             or not self._last_health_check
             or (now - self._last_health_check).seconds > self.health_check_interval
         ):
-
             async with self._lock:
                 # Double-check pattern to avoid duplicate checks
                 if (
@@ -359,7 +358,6 @@ class EnhancedBaseSearchProvider(ABC):
             or not self._last_health_check
             or (now - self._last_health_check).seconds > self.health_check_interval
         ):
-
             async with self._lock:
                 # Double-check pattern to avoid duplicate checks
                 if (

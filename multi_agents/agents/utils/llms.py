@@ -32,7 +32,7 @@ async def call_model(
 
     # Inject date context into system prompts for temporal awareness
     enhanced_prompt = prompt.copy()
-    date_context = get_current_date_context()
+    get_current_date_context()
 
     # Find and enhance system messages with date context
     for i, msg in enumerate(enhanced_prompt):

@@ -58,7 +58,6 @@ class DirectTimeoutPatcher:
                 (rf"timeout\s*=\s*{old_timeout}\b", f"timeout={new_timeout}"),
             ]
 
-            original_content = content
             changes_made = 0
 
             for pattern, replacement in patterns:

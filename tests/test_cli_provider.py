@@ -57,7 +57,7 @@ def test_cli_provider_message():
         print("\nFirst 20 lines of output:")
         for i, line in enumerate(lines[:20]):
             if line.strip():
-                print(f"  {i+1}: {line}")
+                print(f"  {i + 1}: {line}")
 
         return False
 

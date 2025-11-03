@@ -159,10 +159,10 @@ class MockSearchProvider(BaseSearchProvider):
         for i in range(self.default_result_count):
             results.append(
                 SearchResult(
-                    title=f"Mock Article {i+1} for '{query}'",
-                    url=f"https://mock.example.com/article{i+1}",
-                    content=f"Mock content for article {i+1} related to query: {query}",
-                    published_date=f"2024-01-{15-i:02d}",
+                    title=f"Mock Article {i + 1} for '{query}'",
+                    url=f"https://mock.example.com/article{i + 1}",
+                    content=f"Mock content for article {i + 1} related to query: {query}",
+                    published_date=f"2024-01-{15 - i:02d}",
                     score=0.9 - (i * 0.1),
                 )
             )
@@ -195,10 +195,10 @@ class MockSearchProvider(BaseSearchProvider):
         for i in range(min(self.default_result_count, 3)):  # Fewer news results
             results.append(
                 SearchResult(
-                    title=f"Mock News Article {i+1} for '{query}'",
-                    url=f"https://news.mock.example.com/article{i+1}",
-                    content=f"Breaking news content for article {i+1} related to query: {query}",
-                    published_date=f"2024-01-{15-i:02d}",
+                    title=f"Mock News Article {i + 1} for '{query}'",
+                    url=f"https://news.mock.example.com/article{i + 1}",
+                    content=f"Breaking news content for article {i + 1} related to query: {query}",
+                    published_date=f"2024-01-{15 - i:02d}",
                     score=0.95 - (i * 0.05),
                 )
             )

@@ -74,7 +74,6 @@ class TestWorkflowIntegration:
         with patch("multi_agents.agents.utils.file_formats.write_text_to_md") as mock_md:
             with patch("multi_agents.agents.utils.file_formats.write_md_to_pdf") as mock_pdf:
                 with patch("multi_agents.agents.utils.file_formats.write_md_to_word") as mock_docx:
-
                     # Setup publisher file creation
                     md_path = os.path.join(self.temp_dir, "report.md")
                     pdf_path = os.path.join(self.temp_dir, "report.pdf")

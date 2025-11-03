@@ -56,13 +56,6 @@ def test_anonymous_user_can_access_protected_endpoint():
     # 6. Backend: Processes research request successfully
     # 7. Response: Returns session_id and status
 
-    expected_request = {"subject": "Test Research Topic", "language": "en"}
-
-    expected_response_structure = {
-        "session_id": "str (UUID)",
-        "status": "str (initializing|running|completed)",
-    }
-
     assert True, "Anonymous user research flow documented"
 
 

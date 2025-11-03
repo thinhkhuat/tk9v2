@@ -22,7 +22,7 @@ def debug_cli_flow():
 
     # Step 3: Create CLI instance
     print("Step 3: Creating InteractiveCLI instance...")
-    cli = InteractiveCLI(verbose=False, save_files=True)
+    InteractiveCLI(verbose=False, save_files=True)
 
     # Step 4: Simulate the exact flow when user types a query
     print("Step 4: Simulating research query...")

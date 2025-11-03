@@ -149,9 +149,9 @@ async def test_rls_blocks_inserting_session_for_other_user(authenticated_clients
 
     # Verify the error is permission-related
     error_msg = str(exc_info.value).lower()
-    assert (
-        "policy" in error_msg or "permission" in error_msg or "violat" in error_msg
-    ), f"Expected RLS policy violation error, got: {exc_info.value}"
+    assert "policy" in error_msg or "permission" in error_msg or "violat" in error_msg, (
+        f"Expected RLS policy violation error, got: {exc_info.value}"
+    )
 
 
 # ============================================================================
@@ -245,7 +245,7 @@ async def test_rls_blocks_accessing_drafts_from_other_users_sessions(authenticat
         .execute()
     )
 
-    draft_id = draft_response.data[0]["id"]
+    draft_response.data[0]["id"]
 
     # User A can see their own drafts (positive test)
     user_a_query = (
@@ -314,9 +314,9 @@ async def test_complete_data_isolation_between_users(authenticated_clients):
     assert session_a["id"] not in user_b_ids, "User B should NOT see User A's session"
 
     # Verify complete isolation: no overlap
-    assert (
-        len(set(user_a_ids) & set(user_b_ids)) == 0
-    ), "No session IDs should overlap between users"
+    assert len(set(user_a_ids) & set(user_b_ids)) == 0, (
+        "No session IDs should overlap between users"
+    )
 
     # Cleanup
     user_a["client"].table("research_sessions").delete().eq("id", session_a["id"]).execute()

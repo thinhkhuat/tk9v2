@@ -196,9 +196,9 @@ class TestFileDownloads(TestDashboardValidation):
                     file_ext = "." + filename.split(".")[-1].lower()
                     if file_ext in expected_mime_types:
                         expected_mime = expected_mime_types[file_ext]
-                        assert (
-                            expected_mime in content_type
-                        ), f"Wrong MIME type for {filename}: {content_type}"
+                        assert expected_mime in content_type, (
+                            f"Wrong MIME type for {filename}: {content_type}"
+                        )
 
                     # Validate content disposition header
                     assert "attachment" in response.headers.get("content-disposition", "").lower()
@@ -385,14 +385,14 @@ class TestDataIntegrity(TestDashboardValidation):
 
         for session in sessions:
             # Validate session ID format (should match run_timestamp_subject pattern)
-            assert session["session_id"].startswith(
-                "run_"
-            ), f"Invalid session ID format: {session['session_id']}"
+            assert session["session_id"].startswith("run_"), (
+                f"Invalid session ID format: {session['session_id']}"
+            )
 
             # Validate file count matches actual files array length
-            assert (
-                len(session["files"]) == session["file_count"]
-            ), f"File count mismatch in session {session['session_id']}"
+            assert len(session["files"]) == session["file_count"], (
+                f"File count mismatch in session {session['session_id']}"
+            )
 
             # Validate file URLs are properly formatted
             for file_info in session["files"]:

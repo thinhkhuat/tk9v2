@@ -41,7 +41,6 @@ class HumanAgent:
                     print(f"Error receiving human feedback: {e}", flush=True)
             # Otherwise, prompt the user for feedback in the console
             else:
-
                 # Use async-compatible input alternative
                 try:
                     user_feedback = await self._async_input(

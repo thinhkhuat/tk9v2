@@ -65,7 +65,6 @@ class TestEndToEndWorkflow:
                             with patch(
                                 "multi_agents.agents.translator.TranslatorAgent.run"
                             ) as mock_translator:
-
                                 # Setup mock responses that simulate real workflow
                                 await self._setup_workflow_mocks(
                                     mock_browser,
@@ -115,7 +114,6 @@ class TestEndToEndWorkflow:
                             with patch(
                                 "multi_agents.agents.translator.TranslatorAgent.run"
                             ) as mock_translator:
-
                                 await self._setup_workflow_mocks(
                                     mock_browser,
                                     mock_planner,
@@ -157,7 +155,6 @@ class TestEndToEndWorkflow:
                             with patch(
                                 "multi_agents.agents.translator.TranslatorAgent.run"
                             ) as mock_translator:
-
                                 # Setup mocks with one failure
                                 await self._setup_workflow_mocks(
                                     mock_browser,
@@ -381,7 +378,10 @@ class TestRealWorldScenarios:
 
             # Test translation
             result = await translator._translate_chunk_concurrent(
-                large_content[:2000], "Vietnamese", "vi", {}  # Limit for test performance
+                large_content[:2000],
+                "Vietnamese",
+                "vi",
+                {},  # Limit for test performance
             )
 
             assert result is not None
@@ -450,7 +450,7 @@ class TestRealWorldScenarios:
                     mock_endpoint.return_value = scenario
 
                 try:
-                    result = await translator._translate_chunk_concurrent(
+                    await translator._translate_chunk_concurrent(
                         "Test content for network resilience", "Vietnamese", "vi", {}
                     )
                     # Should handle gracefully regardless of network issues

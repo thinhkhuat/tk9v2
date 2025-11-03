@@ -64,7 +64,6 @@ class BraveSearchProvider(BaseSearchProvider):
                     headers=headers,
                     timeout=aiohttp.ClientTimeout(total=self.timeout),
                 ) as response:
-
                     if response.status == 401:
                         raise SearchProviderError("Invalid API key", "brave", "auth_error")
                     elif response.status == 429:
@@ -130,7 +129,6 @@ class BraveSearchProvider(BaseSearchProvider):
                     headers=headers,
                     timeout=aiohttp.ClientTimeout(total=self.timeout),
                 ) as response:
-
                     if response.status != 200:
                         error_text = await response.text()
                         raise SearchProviderError(
@@ -224,7 +222,7 @@ class BraveSearchProvider(BaseSearchProvider):
         - 50 word limit
         Preserves key terms and removes filler words
         """
-        original_length = len(query)
+        len(query)
         original_word_count = len(query.split())
 
         # Return early if within both limits

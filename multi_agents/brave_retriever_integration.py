@@ -129,7 +129,7 @@ def setup_brave_custom_retriever():
                 """
                 try:
                     # Check if we're already in an async context
-                    loop = asyncio.get_running_loop()
+                    asyncio.get_running_loop()
                     # We're in an async context, use thread pool
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         future = executor.submit(self._run_async_search, max_results)

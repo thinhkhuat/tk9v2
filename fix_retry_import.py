@@ -103,7 +103,6 @@ def verify_fix():
             logger.info("✅ Verification: Retry can be imported")
             return True
         except ImportError:
-
             logger.info("✅ Verification: Retry can be imported (fallback)")
             return True
 
