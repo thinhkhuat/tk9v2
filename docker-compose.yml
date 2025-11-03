@@ -23,7 +23,7 @@ services:
 
       # AI Providers (7-agent system)
       - PRIMARY_LLM_PROVIDER=${PRIMARY_LLM_PROVIDER:-google_gemini}
-      - PRIMARY_LLM_MODEL=${PRIMARY_LLM_MODEL:-gemini-2.5-flash-preview-04-17-thinking}
+      - PRIMARY_LLM_MODEL=${PRIMARY_LLM_MODEL:-gemini-2.5-flash}
       - PRIMARY_SEARCH_PROVIDER=${PRIMARY_SEARCH_PROVIDER:-brave}
 
       # API Keys
