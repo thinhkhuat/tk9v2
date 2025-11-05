@@ -65,9 +65,9 @@ export const useSessionStore = defineStore('session', () => {
   // WebSocket instance
   let ws: WebSocket | null = null
 
-  // Polling fallback state
-  let pollingInterval: NodeJS.Timeout | null = null
-  let watchdogInterval: NodeJS.Timeout | null = null
+  // Polling fallback state (using number for browser compatibility)
+  let pollingInterval: number | null = null
+  let watchdogInterval: number | null = null
   const lastSuccessfulWsMessage = ref<Date>(new Date())
   const isPollingActive = ref(false)
 
