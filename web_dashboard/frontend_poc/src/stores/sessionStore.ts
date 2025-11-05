@@ -189,6 +189,22 @@ export const useSessionStore = defineStore('session', () => {
       try {
         const data: WebSocketEvent = JSON.parse(event.data)
 
+        // HEARTBEAT: Respond to server pings
+        if (data.type === 'ping') {
+          ws?.send(JSON.stringify({
+            type: 'pong',
+            timestamp: new Date().toISOString()
+          }))
+          console.debug(`💓 Responded to ping from server`)
+          return
+        }
+
+        // HEARTBEAT: Log pong responses from server
+        if (data.type === 'pong') {
+          console.debug(`💓 Received pong from server`)
+          return
+        }
+
         // DIAGNOSTIC LOGGING: Track received events
         const eventType = data.event_type
         const timestamp = new Date().toISOString()
