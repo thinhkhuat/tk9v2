@@ -283,6 +283,62 @@ export const useSessionStore = defineStore('session', () => {
     watchdogInterval = setInterval(() => {
       startPollingIfNeeded()
     }, 10000) // Check every 10 seconds
+
+    // CRITICAL FIX: Handle tab visibility changes
+    // When user switches back to tab, force a state sync via polling
+    // This handles browser WebSocket suspension when tab is backgrounded
+    const handleVisibilityChange = async () => {
+      if (!document.hidden && sessionId.value) {
+        console.log('👁️ Tab became visible - checking for missed updates')
+
+        // Force immediate state check when tab becomes visible
+        try {
+          const { api } = await import('@/services/api')
+          const state = await api.getSessionState(sessionId.value)
+
+          // Check for new files that weren't received via WebSocket
+          const newFiles = state.files.filter(
+            (f: any) => !files.value.some(existing => existing.filename === f.filename)
+          )
+
+          if (newFiles.length > 0) {
+            console.log(`📁 Tab visibility sync: discovered ${newFiles.length} missed files`)
+            newFiles.forEach((f: any) => {
+              files.value.push({
+                file_id: f.file_id || f.filename,
+                filename: f.filename,
+                file_type: f.file_type,
+                language: f.language,
+                size_bytes: f.size_bytes,
+                path: f.download_url
+              })
+            })
+            toast.info(`📁 ${newFiles.length} file(s) loaded`)
+          }
+
+          // Update completion status if changed
+          if (state.status === 'completed' && overallStatus.value !== 'completed') {
+            console.log('✅ Tab visibility sync: detected completion')
+            overallStatus.value = 'completed'
+            overallProgress.value = 100
+            toast.success('🎉 Research completed!')
+          }
+        } catch (error) {
+          console.error('Failed to sync state on tab visibility:', error)
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    // Clean up visibility listener on disconnect
+    const originalOnClose = ws.onclose
+    ws.onclose = (event) => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      if (originalOnClose) {
+        originalOnClose.call(ws, event)
+      }
+    }
   }
 
   function disconnect() {
