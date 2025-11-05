@@ -74,12 +74,14 @@ ENV PYTHONUNBUFFERED=1 \
     VIRTUAL_ENV="/opt/.venv"
 
 # Install runtime dependencies
-# Full TeX Live for complete Unicode/Vietnamese support
+# Minimal TeX installation with XeLaTeX for PDF generation
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     pandoc \
-    texlive-full \
+    texlive-xetex \
+    texlive-fonts-recommended \
+    texlive-plain-generic \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
