@@ -321,6 +321,21 @@ export const useSessionStore = defineStore('session', () => {
             console.log('✅ Tab visibility sync: detected completion')
             overallStatus.value = 'completed'
             overallProgress.value = 100
+
+            // CRITICAL FIX: Mark all agents as completed when research completes
+            // This fixes agent cards stuck in "running" state after tab switch
+            AGENT_PIPELINE_ORDER.forEach(agentName => {
+              agents.value.set(agentName, {
+                agent_id: agentName.toLowerCase(),
+                agent_name: agentName,
+                status: 'completed',
+                progress: 100,
+                message: 'Agent completed',
+                stats: null
+              })
+            })
+            console.log('✅ All agent cards marked as completed')
+
             toast.success('🎉 Research completed!')
           }
         } catch (error) {
