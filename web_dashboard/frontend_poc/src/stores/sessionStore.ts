@@ -179,32 +179,71 @@ export const useSessionStore = defineStore('session', () => {
 
     ws.onopen = () => {
       wsStatus.value = 'connected'
-      console.log('✅ WebSocket connected')
+      console.log(
+        `✅ [${new Date().toISOString()}] WebSocket connected`,
+        { sessionId: sessionIdParam.substring(0, 8), url: ws?.url }
+      )
     }
 
     ws.onmessage = (event) => {
       try {
         const data: WebSocketEvent = JSON.parse(event.data)
+
+        // DIAGNOSTIC LOGGING: Track received events
+        const eventType = data.event_type
+        const timestamp = new Date().toISOString()
+        console.log(
+          `📥 [${timestamp}] WebSocket received: ${eventType}`,
+          {
+            eventType,
+            payloadSize: JSON.stringify(data.payload).length,
+            sessionId: sessionId.value?.substring(0, 8)
+          }
+        )
+
+        // Track event processing
+        const startTime = performance.now()
         handleEvent(data)
+        const duration = performance.now() - startTime
+
+        if (duration > 100) {
+          console.warn(
+            `⚠️ Slow event processing: ${eventType} took ${duration.toFixed(2)}ms`
+          )
+        }
       } catch (error) {
-        console.error('Error parsing WebSocket message:', error)
+        console.error('❌ Error parsing WebSocket message:', error, event.data)
       }
     }
 
     ws.onerror = (error) => {
       wsStatus.value = 'error'
-      console.error('❌ WebSocket error:', error)
+      console.error(
+        `❌ [${new Date().toISOString()}] WebSocket error:`,
+        { sessionId: sessionId.value?.substring(0, 8), error, readyState: ws?.readyState }
+      )
     }
 
     ws.onclose = (event) => {
       wsStatus.value = 'disconnected'
-      console.log('🔌 WebSocket disconnected', event.code, event.reason)
+      console.log(
+        `🔌 [${new Date().toISOString()}] WebSocket disconnected`,
+        {
+          sessionId: sessionId.value?.substring(0, 8),
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean
+        }
+      )
 
       // Auto-reconnect if connection was not closed cleanly
       if (!event.wasClean && sessionId.value) {
-        console.log(`🔄 Attempting to reconnect in ${WS_RECONNECT_DELAY / 1000} seconds...`)
+        console.log(
+          `🔄 Attempting to reconnect in ${WS_RECONNECT_DELAY / 1000} seconds...`
+        )
         setTimeout(() => {
           if (sessionId.value) {
+            console.log(`🔄 Reconnecting to session ${sessionId.value.substring(0, 8)}...`)
             connect(sessionId.value)
           }
         }, WS_RECONNECT_DELAY)

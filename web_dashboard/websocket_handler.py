@@ -136,17 +136,42 @@ class WebSocketManager:
         self._write_log_to_file(session_id, event)
 
         if session_id not in self.active_connections:
+            logger.warning(f"⚠️ No active WebSocket connections for session {session_id}")
             return
 
         disconnected_connections = set()
         event_json = event.to_json_dict()
+        event_type = event_json.get("event_type", "unknown")
 
+        # DIAGNOSTIC LOGGING: Track send attempts
+        connection_count = len(self.active_connections[session_id])
+        logger.info(
+            f"📤 Sending {event_type} to {connection_count} connection(s) "
+            f"for session {session_id[:8]}"
+        )
+
+        sent_count = 0
         for connection in self.active_connections[session_id].copy():
             try:
                 await connection.send_text(json.dumps(event_json))
+                sent_count += 1
             except Exception as e:
-                logger.warning(f"Failed to send event to WebSocket: {e}")
+                logger.warning(
+                    f"❌ Failed to send {event_type} to WebSocket "
+                    f"(session {session_id[:8]}): {e}"
+                )
                 disconnected_connections.add(connection)
+
+        # DIAGNOSTIC LOGGING: Track delivery success rate
+        if sent_count < connection_count:
+            logger.error(
+                f"⚠️ Partial delivery: {sent_count}/{connection_count} connections "
+                f"received {event_type} for session {session_id[:8]}"
+            )
+        else:
+            logger.debug(
+                f"✅ Successfully sent {event_type} to all {sent_count} connection(s)"
+            )
 
         # Clean up disconnected connections
         for connection in disconnected_connections:
