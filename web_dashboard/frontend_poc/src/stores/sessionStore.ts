@@ -6,7 +6,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useToast } from 'vue-toastification'
-import { WS_RECONNECT_DELAY } from '@/config/api'
+import { WS_RECONNECT_DELAY, STATE_POLL_INTERVAL } from '@/config/api'
 import { getNormalizedFileType } from '@/utils/file-display-utils'
 import type {
   WebSocketEvent,
@@ -64,6 +64,12 @@ export const useSessionStore = defineStore('session', () => {
 
   // WebSocket instance
   let ws: WebSocket | null = null
+
+  // Polling fallback state
+  let pollingInterval: NodeJS.Timeout | null = null
+  let watchdogInterval: NodeJS.Timeout | null = null
+  const lastSuccessfulWsMessage = ref<Date>(new Date())
+  const isPollingActive = ref(false)
 
   // ============================================================================
   // Computed Properties
@@ -252,6 +258,13 @@ export const useSessionStore = defineStore('session', () => {
         }
       )
 
+      // Clean up watchdog
+      if (watchdogInterval) {
+        clearInterval(watchdogInterval)
+        watchdogInterval = null
+      }
+      stopPolling()
+
       // Auto-reconnect if connection was not closed cleanly
       if (!event.wasClean && sessionId.value) {
         console.log(
@@ -265,9 +278,15 @@ export const useSessionStore = defineStore('session', () => {
         }, WS_RECONNECT_DELAY)
       }
     }
+
+    // Set up watchdog to detect stale WebSocket and start polling
+    watchdogInterval = setInterval(() => {
+      startPollingIfNeeded()
+    }, 10000) // Check every 10 seconds
   }
 
   function disconnect() {
+    stopPolling()
     if (ws) {
       ws.close()
       ws = null
@@ -275,7 +294,101 @@ export const useSessionStore = defineStore('session', () => {
     wsStatus.value = 'disconnected'
   }
 
+  /**
+   * Update last WebSocket message timestamp (call on every received message)
+   */
+  function updateWebSocketActivity() {
+    lastSuccessfulWsMessage.value = new Date()
+
+    // If polling is active but WebSocket is healthy again, stop polling
+    if (isPollingActive.value) {
+      console.log('✅ WebSocket recovered - stopping polling fallback')
+      stopPolling()
+    }
+  }
+
+  /**
+   * Start polling fallback when WebSocket is degraded
+   * Automatically detects stale WebSocket connections (no messages for 30s)
+   */
+  async function startPollingIfNeeded() {
+    // Don't start if already polling
+    if (isPollingActive.value) return
+
+    // Don't start if no session
+    if (!sessionId.value) return
+
+    // Check if WebSocket is stale (no messages for 30 seconds)
+    const timeSinceLastMessage = Date.now() - lastSuccessfulWsMessage.value.getTime()
+    const isWebSocketStale = timeSinceLastMessage > 30000 // 30 seconds
+
+    // Only start polling if WebSocket is stale AND research is running
+    if (isWebSocketStale && isResearchRunning.value) {
+      console.warn(
+        `⚠️ WebSocket appears stale (no messages for ${(timeSinceLastMessage / 1000).toFixed(1)}s) - ` +
+        `starting polling fallback every ${STATE_POLL_INTERVAL / 1000}s`
+      )
+
+      isPollingActive.value = true
+      pollingInterval = setInterval(async () => {
+        if (!sessionId.value) {
+          stopPolling()
+          return
+        }
+
+        try {
+          console.debug(`🔄 Polling state for session ${sessionId.value.substring(0, 8)}`)
+          const { api } = await import('@/services/api')
+          const state = await api.getSessionState(sessionId.value)
+
+          // Update files if new files appeared
+          const newFiles = state.files.filter(
+            (f: any) => !files.value.some(existing => existing.filename === f.filename)
+          )
+
+          if (newFiles.length > 0) {
+            console.log(`📁 Polling discovered ${newFiles.length} new files`)
+            newFiles.forEach((f: any) => {
+              files.value.push({
+                file_id: f.file_id || f.filename,
+                filename: f.filename,
+                file_type: f.file_type,
+                language: f.language,
+                size_bytes: f.size_bytes,
+                path: f.download_url
+              })
+            })
+          }
+
+          // Update overall status if changed
+          if (state.status === 'completed' && overallStatus.value !== 'completed') {
+            console.log('✅ Polling detected research completion')
+            overallStatus.value = 'completed'
+            overallProgress.value = 100
+            toast.success('🎉 Research completed successfully!')
+            stopPolling()
+          }
+
+        } catch (error) {
+          console.error('Polling failed:', error)
+        }
+      }, STATE_POLL_INTERVAL)
+    }
+  }
+
+  function stopPolling() {
+    if (pollingInterval) {
+      clearInterval(pollingInterval)
+      pollingInterval = null
+      isPollingActive.value = false
+      console.log('🛑 Stopped state polling')
+    }
+  }
+
   function handleEvent(event: WebSocketEvent) {
+    // Track WebSocket activity
+    updateWebSocketActivity()
+
     // Add to event log (circular buffer)
     events.value.push(event)
     if (events.value.length > maxEvents) {
@@ -671,6 +784,8 @@ export const useSessionStore = defineStore('session', () => {
     totalFileSize,
     // Phase 4: Agent flow visualization
     orderedAgents,
+    // Polling fallback
+    isPollingActive,
 
     // Actions
     connect,

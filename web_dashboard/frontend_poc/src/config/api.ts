@@ -40,6 +40,12 @@ export const FILE_DOWNLOAD_TIMEOUT = envToInt(import.meta.env.VITE_FILE_DOWNLOAD
 export const WS_RECONNECT_DELAY = envToInt(import.meta.env.VITE_WS_RECONNECT_DELAY, 3000)
 
 /**
+ * State polling interval for WebSocket fallback (milliseconds)
+ * Default: 10 seconds (only used when WebSocket is degraded)
+ */
+export const STATE_POLL_INTERVAL = envToInt(import.meta.env.VITE_STATE_POLL_INTERVAL, 10000)
+
+/**
  * API base URL
  * Default: Production domain (tk9v2.thinhkhuat.com)
  * Uses nullish coalescing (??) to only check for null/undefined, not empty strings
@@ -61,6 +67,7 @@ export const API_CONFIG = {
   fileDownloadTimeout: FILE_DOWNLOAD_TIMEOUT,
   wsBaseURL: WS_BASE_URL,
   wsReconnectDelay: WS_RECONNECT_DELAY,
+  statePollInterval: STATE_POLL_INTERVAL,
 } as const
 
 export default API_CONFIG
