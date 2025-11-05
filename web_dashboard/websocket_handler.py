@@ -8,6 +8,7 @@ from typing import Dict, Set
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from .message_ack_tracker import MessageAckTracker
 from .schemas import (
     WebSocketEvent,
     create_agent_update_event,
@@ -61,6 +62,9 @@ class WebSocketManager:
         # Outputs directory for log files
         self.outputs_path = outputs_path or Path(__file__).parent.parent / "outputs"
         self.outputs_path.mkdir(parents=True, exist_ok=True)
+
+        # Message acknowledgment tracker
+        self.ack_tracker = MessageAckTracker(retry_after=5.0, max_retries=3)
 
     async def connect(self, websocket: WebSocket, session_id: str):
         """Accept a new WebSocket connection for a session"""
@@ -143,17 +147,26 @@ class WebSocketManager:
         event_json = event.to_json_dict()
         event_type = event_json.get("event_type", "unknown")
 
+        # Check if this event type requires acknowledgment
+        requires_ack = event_type in ["agent_update", "file_generated", "research_status"]
+
         # DIAGNOSTIC LOGGING: Track send attempts
         connection_count = len(self.active_connections[session_id])
+        ack_marker = "🔒" if requires_ack else ""
         logger.info(
-            f"📤 Sending {event_type} to {connection_count} connection(s) "
+            f"📤 {ack_marker} Sending {event_type} to {connection_count} connection(s) "
             f"for session {session_id[:8]}"
         )
 
         sent_count = 0
         for connection in self.active_connections[session_id].copy():
             try:
-                await connection.send_text(json.dumps(event_json))
+                if requires_ack:
+                    # Send with acknowledgment tracking
+                    await self.ack_tracker.send_with_ack(connection, event_json, session_id)
+                else:
+                    # Send without ack (logs, etc.)
+                    await connection.send_text(json.dumps(event_json))
                 sent_count += 1
             except Exception as e:
                 logger.warning(
@@ -495,7 +508,9 @@ class WebSocketManager:
                     # Handle client messages
                     try:
                         data = json.loads(message)
-                        if data.get("type") == "ping":
+                        msg_type = data.get("type")
+
+                        if msg_type == "ping":
                             # Client ping - respond with pong
                             await websocket.send_text(
                                 json.dumps(
@@ -505,11 +520,16 @@ class WebSocketManager:
                                     }
                                 )
                             )
-                        elif data.get("type") == "pong":
+                        elif msg_type == "pong":
                             # Pong response from client - reset heartbeat
                             last_pong = datetime.now()
                             missed_pongs = 0
                             logger.debug(f"💓 Received pong from session {session_id[:8]}")
+                        elif msg_type == "ack":
+                            # Client acknowledged a message
+                            message_id = data.get("message_id")
+                            if message_id:
+                                await self.ack_tracker.acknowledge(message_id, session_id)
                     except json.JSONDecodeError:
                         pass  # Ignore invalid JSON
 
@@ -549,6 +569,8 @@ class WebSocketManager:
         except Exception as e:
             logger.error(f"WebSocket error for session {session_id}: {e}")
         finally:
+            # Clean up ack tracker
+            self.ack_tracker.cleanup_session(session_id)
             self.disconnect(websocket, session_id)
 
     def get_session_connection_count(self, session_id: str) -> int:

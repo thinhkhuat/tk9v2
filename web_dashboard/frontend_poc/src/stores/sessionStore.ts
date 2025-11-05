@@ -282,6 +282,17 @@ export const useSessionStore = defineStore('session', () => {
       events.value = events.value.slice(-maxEvents)
     }
 
+    // ACKNOWLEDGMENT: Send ack for critical events
+    const requiresAck = ['agent_update', 'file_generated', 'research_status'].includes(event.event_type)
+    if (requiresAck && event.message_id) {
+      ws?.send(JSON.stringify({
+        type: 'ack',
+        message_id: event.message_id,
+        timestamp: new Date().toISOString()
+      }))
+      console.debug(`✅ Sent ack for ${event.event_type} (${event.message_id.substring(0, 8)})`)
+    }
+
     // Handle by event type - TypeScript automatically narrows the payload type!
     switch (event.event_type) {
       case 'agent_update':
