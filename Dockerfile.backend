@@ -116,4 +116,4 @@ EXPOSE 12689
 
 # Start backend (using uvicorn directly like start_dashboard_prod.sh does)
 # Disable auto-reload to prevent WatchFiles from killing research processes
-CMD ["python", "-m", "uvicorn", "web_dashboard.main:app", "--host", "0.0.0.0", "--port", "12689", "--no-reload"]
+CMD ["python", "-m", "uvicorn", "web_dashboard.main:app", "--host", "0.0.0.0", "--port", "12689"]
