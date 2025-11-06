@@ -331,7 +331,7 @@ export const useSessionStore = defineStore('session', () => {
                 status: 'completed',
                 progress: 100,
                 message: 'Agent completed',
-                stats: null
+                stats: undefined
               })
             })
             console.log('✅ All agent cards marked as completed')
@@ -350,7 +350,7 @@ export const useSessionStore = defineStore('session', () => {
     const originalOnClose = ws.onclose
     ws.onclose = (event) => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      if (originalOnClose) {
+      if (originalOnClose && ws) {
         originalOnClose.call(ws, event)
       }
     }
