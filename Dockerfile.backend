@@ -74,14 +74,17 @@ ENV PYTHONUNBUFFERED=1 \
     VIRTUAL_ENV="/opt/.venv"
 
 # Install runtime dependencies
-# Minimal TeX installation with XeLaTeX for PDF generation
+# TeX installation for Pandoc PDF generation with XeLaTeX
+# Balanced approach: More comprehensive than minimal, much smaller than texlive-full
+# Total size: ~700MB vs 4.5GB (texlive-full) vs ~150MB (broken minimal)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     pandoc \
     texlive-xetex \
     texlive-fonts-recommended \
-    texlive-plain-generic \
+    texlive-latex-recommended \
+    texlive-latex-extra \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
