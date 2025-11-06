@@ -75,8 +75,15 @@ services:
       retries: 3
       start_period: 40s
 
+    # Network optimization for WebSocket reliability
+    sysctls:
+      - net.ipv4.tcp_keepalive_time=60
+      - net.ipv4.tcp_keepalive_intvl=10
+      - net.ipv4.tcp_keepalive_probes=6
+
     networks:
-      - tk9-network
+      tk9-network:
+        # No specific IP - let Docker assign
 
     logging:
       driver: json-file
@@ -144,3 +151,9 @@ networks:
   tk9-network:
     driver: bridge
     name: tk9-network
+    driver_opts:
+      com.docker.network.bridge.name: tk9-br0
+      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+      # Increase MTU for better WebSocket performance
+      com.docker.network.driver.mtu: "1500"

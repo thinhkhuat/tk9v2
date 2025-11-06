@@ -6,7 +6,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useToast } from 'vue-toastification'
-import { WS_RECONNECT_DELAY } from '@/config/api'
+import { WS_RECONNECT_DELAY, STATE_POLL_INTERVAL } from '@/config/api'
 import { getNormalizedFileType } from '@/utils/file-display-utils'
 import type {
   WebSocketEvent,
@@ -64,6 +64,12 @@ export const useSessionStore = defineStore('session', () => {
 
   // WebSocket instance
   let ws: WebSocket | null = null
+
+  // Polling fallback state (using number for browser compatibility)
+  let pollingInterval: number | null = null
+  let watchdogInterval: number | null = null
+  const lastSuccessfulWsMessage = ref<Date>(new Date())
+  const isPollingActive = ref(false)
 
   // ============================================================================
   // Computed Properties
@@ -179,40 +185,179 @@ export const useSessionStore = defineStore('session', () => {
 
     ws.onopen = () => {
       wsStatus.value = 'connected'
-      console.log('✅ WebSocket connected')
+      console.log(
+        `✅ [${new Date().toISOString()}] WebSocket connected`,
+        { sessionId: sessionIdParam.substring(0, 8), url: ws?.url }
+      )
     }
 
     ws.onmessage = (event) => {
       try {
         const data: WebSocketEvent = JSON.parse(event.data)
+
+        // HEARTBEAT: Respond to server pings
+        if (data.type === 'ping') {
+          ws?.send(JSON.stringify({
+            type: 'pong',
+            timestamp: new Date().toISOString()
+          }))
+          console.debug(`💓 Responded to ping from server`)
+          return
+        }
+
+        // HEARTBEAT: Log pong responses from server
+        if (data.type === 'pong') {
+          console.debug(`💓 Received pong from server`)
+          return
+        }
+
+        // DIAGNOSTIC LOGGING: Track received events
+        const eventType = data.event_type
+        const timestamp = new Date().toISOString()
+        console.log(
+          `📥 [${timestamp}] WebSocket received: ${eventType}`,
+          {
+            eventType,
+            payloadSize: JSON.stringify(data.payload).length,
+            sessionId: sessionId.value?.substring(0, 8)
+          }
+        )
+
+        // Track event processing
+        const startTime = performance.now()
         handleEvent(data)
+        const duration = performance.now() - startTime
+
+        if (duration > 100) {
+          console.warn(
+            `⚠️ Slow event processing: ${eventType} took ${duration.toFixed(2)}ms`
+          )
+        }
       } catch (error) {
-        console.error('Error parsing WebSocket message:', error)
+        console.error('❌ Error parsing WebSocket message:', error, event.data)
       }
     }
 
     ws.onerror = (error) => {
       wsStatus.value = 'error'
-      console.error('❌ WebSocket error:', error)
+      console.error(
+        `❌ [${new Date().toISOString()}] WebSocket error:`,
+        { sessionId: sessionId.value?.substring(0, 8), error, readyState: ws?.readyState }
+      )
     }
 
     ws.onclose = (event) => {
       wsStatus.value = 'disconnected'
-      console.log('🔌 WebSocket disconnected', event.code, event.reason)
+      console.log(
+        `🔌 [${new Date().toISOString()}] WebSocket disconnected`,
+        {
+          sessionId: sessionId.value?.substring(0, 8),
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean
+        }
+      )
+
+      // Clean up watchdog
+      if (watchdogInterval) {
+        clearInterval(watchdogInterval)
+        watchdogInterval = null
+      }
+      stopPolling()
 
       // Auto-reconnect if connection was not closed cleanly
       if (!event.wasClean && sessionId.value) {
-        console.log(`🔄 Attempting to reconnect in ${WS_RECONNECT_DELAY / 1000} seconds...`)
+        console.log(
+          `🔄 Attempting to reconnect in ${WS_RECONNECT_DELAY / 1000} seconds...`
+        )
         setTimeout(() => {
           if (sessionId.value) {
+            console.log(`🔄 Reconnecting to session ${sessionId.value.substring(0, 8)}...`)
             connect(sessionId.value)
           }
         }, WS_RECONNECT_DELAY)
       }
     }
+
+    // Set up watchdog to detect stale WebSocket and start polling
+    watchdogInterval = setInterval(() => {
+      startPollingIfNeeded()
+    }, 10000) // Check every 10 seconds
+
+    // CRITICAL FIX: Handle tab visibility changes
+    // When user switches back to tab, force a state sync via polling
+    // This handles browser WebSocket suspension when tab is backgrounded
+    const handleVisibilityChange = async () => {
+      if (!document.hidden && sessionId.value) {
+        console.log('👁️ Tab became visible - checking for missed updates')
+
+        // Force immediate state check when tab becomes visible
+        try {
+          const { api } = await import('@/services/api')
+          const state = await api.getSessionState(sessionId.value)
+
+          // Check for new files that weren't received via WebSocket
+          const newFiles = state.files.filter(
+            (f: any) => !files.value.some(existing => existing.filename === f.filename)
+          )
+
+          if (newFiles.length > 0) {
+            console.log(`📁 Tab visibility sync: discovered ${newFiles.length} missed files`)
+            newFiles.forEach((f: any) => {
+              files.value.push({
+                file_id: f.file_id || f.filename,
+                filename: f.filename,
+                file_type: f.file_type,
+                language: f.language,
+                size_bytes: f.size_bytes,
+                path: f.download_url
+              })
+            })
+            toast.info(`📁 ${newFiles.length} file(s) loaded`)
+          }
+
+          // Update completion status if changed
+          if (state.status === 'completed' && overallStatus.value !== 'completed') {
+            console.log('✅ Tab visibility sync: detected completion')
+            overallStatus.value = 'completed'
+            overallProgress.value = 100
+
+            // CRITICAL FIX: Mark all agents as completed when research completes
+            // This fixes agent cards stuck in "running" state after tab switch
+            AGENT_PIPELINE_ORDER.forEach(agentName => {
+              agents.value.set(agentName, {
+                agent_id: agentName.toLowerCase(),
+                agent_name: agentName,
+                status: 'completed',
+                progress: 100,
+                message: 'Agent completed',
+                stats: null
+              })
+            })
+            console.log('✅ All agent cards marked as completed')
+
+            toast.success('🎉 Research completed!')
+          }
+        } catch (error) {
+          console.error('Failed to sync state on tab visibility:', error)
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    // Clean up visibility listener on disconnect
+    const originalOnClose = ws.onclose
+    ws.onclose = (event) => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      if (originalOnClose) {
+        originalOnClose.call(ws, event)
+      }
+    }
   }
 
   function disconnect() {
+    stopPolling()
     if (ws) {
       ws.close()
       ws = null
@@ -220,11 +365,116 @@ export const useSessionStore = defineStore('session', () => {
     wsStatus.value = 'disconnected'
   }
 
+  /**
+   * Update last WebSocket message timestamp (call on every received message)
+   */
+  function updateWebSocketActivity() {
+    lastSuccessfulWsMessage.value = new Date()
+
+    // If polling is active but WebSocket is healthy again, stop polling
+    if (isPollingActive.value) {
+      console.log('✅ WebSocket recovered - stopping polling fallback')
+      stopPolling()
+    }
+  }
+
+  /**
+   * Start polling fallback when WebSocket is degraded
+   * Automatically detects stale WebSocket connections (no messages for 30s)
+   */
+  async function startPollingIfNeeded() {
+    // Don't start if already polling
+    if (isPollingActive.value) return
+
+    // Don't start if no session
+    if (!sessionId.value) return
+
+    // Check if WebSocket is stale (no messages for 30 seconds)
+    const timeSinceLastMessage = Date.now() - lastSuccessfulWsMessage.value.getTime()
+    const isWebSocketStale = timeSinceLastMessage > 30000 // 30 seconds
+
+    // Only start polling if WebSocket is stale AND research is running
+    if (isWebSocketStale && isResearchRunning.value) {
+      console.warn(
+        `⚠️ WebSocket appears stale (no messages for ${(timeSinceLastMessage / 1000).toFixed(1)}s) - ` +
+        `starting polling fallback every ${STATE_POLL_INTERVAL / 1000}s`
+      )
+
+      isPollingActive.value = true
+      pollingInterval = setInterval(async () => {
+        if (!sessionId.value) {
+          stopPolling()
+          return
+        }
+
+        try {
+          console.debug(`🔄 Polling state for session ${sessionId.value.substring(0, 8)}`)
+          const { api } = await import('@/services/api')
+          const state = await api.getSessionState(sessionId.value)
+
+          // Update files if new files appeared
+          const newFiles = state.files.filter(
+            (f: any) => !files.value.some(existing => existing.filename === f.filename)
+          )
+
+          if (newFiles.length > 0) {
+            console.log(`📁 Polling discovered ${newFiles.length} new files`)
+            newFiles.forEach((f: any) => {
+              files.value.push({
+                file_id: f.file_id || f.filename,
+                filename: f.filename,
+                file_type: f.file_type,
+                language: f.language,
+                size_bytes: f.size_bytes,
+                path: f.download_url
+              })
+            })
+          }
+
+          // Update overall status if changed
+          if (state.status === 'completed' && overallStatus.value !== 'completed') {
+            console.log('✅ Polling detected research completion')
+            overallStatus.value = 'completed'
+            overallProgress.value = 100
+            toast.success('🎉 Research completed successfully!')
+            stopPolling()
+          }
+
+        } catch (error) {
+          console.error('Polling failed:', error)
+        }
+      }, STATE_POLL_INTERVAL)
+    }
+  }
+
+  function stopPolling() {
+    if (pollingInterval) {
+      clearInterval(pollingInterval)
+      pollingInterval = null
+      isPollingActive.value = false
+      console.log('🛑 Stopped state polling')
+    }
+  }
+
   function handleEvent(event: WebSocketEvent) {
+    // Track WebSocket activity
+    updateWebSocketActivity()
+
     // Add to event log (circular buffer)
     events.value.push(event)
     if (events.value.length > maxEvents) {
       events.value = events.value.slice(-maxEvents)
+    }
+
+    // ACKNOWLEDGMENT: Send ack for critical events
+    const requiresAck = ['agent_update', 'file_generated', 'research_status'].includes(event.event_type)
+    if (requiresAck && event.message_id) {
+      ws?.send(JSON.stringify({
+        type: 'ack',
+        message_id: event.message_id,
+        timestamp: new Date().toISOString()
+      }))
+      console.debug(`✅ Sent ack for ${event.event_type} (${event.message_id.substring(0, 8)})`)
     }
 
     // Handle by event type - TypeScript automatically narrows the payload type!
@@ -605,6 +855,8 @@ export const useSessionStore = defineStore('session', () => {
     totalFileSize,
     // Phase 4: Agent flow visualization
     orderedAgents,
+    // Polling fallback
+    isPollingActive,
 
     // Actions
     connect,

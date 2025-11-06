@@ -8,6 +8,7 @@ from typing import Dict, Set
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from .message_ack_tracker import MessageAckTracker
 from .schemas import (
     WebSocketEvent,
     create_agent_update_event,
@@ -61,6 +62,9 @@ class WebSocketManager:
         # Outputs directory for log files
         self.outputs_path = outputs_path or Path(__file__).parent.parent / "outputs"
         self.outputs_path.mkdir(parents=True, exist_ok=True)
+
+        # Message acknowledgment tracker
+        self.ack_tracker = MessageAckTracker(retry_after=5.0, max_retries=3)
 
     async def connect(self, websocket: WebSocket, session_id: str):
         """Accept a new WebSocket connection for a session"""
@@ -136,17 +140,51 @@ class WebSocketManager:
         self._write_log_to_file(session_id, event)
 
         if session_id not in self.active_connections:
+            logger.warning(f"⚠️ No active WebSocket connections for session {session_id}")
             return
 
         disconnected_connections = set()
         event_json = event.to_json_dict()
+        event_type = event_json.get("event_type", "unknown")
 
+        # Check if this event type requires acknowledgment
+        requires_ack = event_type in ["agent_update", "file_generated", "research_status"]
+
+        # DIAGNOSTIC LOGGING: Track send attempts
+        connection_count = len(self.active_connections[session_id])
+        ack_marker = "🔒" if requires_ack else ""
+        logger.info(
+            f"📤 {ack_marker} Sending {event_type} to {connection_count} connection(s) "
+            f"for session {session_id[:8]}"
+        )
+
+        sent_count = 0
         for connection in self.active_connections[session_id].copy():
             try:
-                await connection.send_text(json.dumps(event_json))
+                if requires_ack:
+                    # Send with acknowledgment tracking
+                    await self.ack_tracker.send_with_ack(connection, event_json, session_id)
+                else:
+                    # Send without ack (logs, etc.)
+                    await connection.send_text(json.dumps(event_json))
+                sent_count += 1
             except Exception as e:
-                logger.warning(f"Failed to send event to WebSocket: {e}")
+                logger.warning(
+                    f"❌ Failed to send {event_type} to WebSocket "
+                    f"(session {session_id[:8]}): {e}"
+                )
                 disconnected_connections.add(connection)
+
+        # DIAGNOSTIC LOGGING: Track delivery success rate
+        if sent_count < connection_count:
+            logger.error(
+                f"⚠️ Partial delivery: {sent_count}/{connection_count} connections "
+                f"received {event_type} for session {session_id[:8]}"
+            )
+        else:
+            logger.debug(
+                f"✅ Successfully sent {event_type} to all {sent_count} connection(s)"
+            )
 
         # Clean up disconnected connections
         for connection in disconnected_connections:
@@ -427,7 +465,7 @@ class WebSocketManager:
                 del self.agent_states[session_id]
 
     async def handle_websocket(self, websocket: WebSocket, session_id: str):
-        """Handle WebSocket lifecycle for a session"""
+        """Handle WebSocket lifecycle for a session with heartbeat"""
         try:
             await self.connect(websocket, session_id)
 
@@ -448,16 +486,32 @@ class WebSocketManager:
                 )
             )
 
-            # Keep connection alive and listen for any client messages
+            # Heartbeat state
+            last_pong = datetime.now()
+            missed_pongs = 0
+            HEARTBEAT_INTERVAL = 30  # seconds
+            HEARTBEAT_TIMEOUT = 90  # 3 missed pongs = disconnect
+
+            # Keep connection alive and listen for client messages
             while True:
                 try:
-                    # Wait for messages from client (like ping/pong)
-                    message = await asyncio.wait_for(websocket.receive_text(), timeout=1.0)
+                    # Calculate time until next heartbeat
+                    time_since_last = (datetime.now() - last_pong).total_seconds()
+                    next_ping_in = max(0.1, HEARTBEAT_INTERVAL - time_since_last)
 
-                    # Handle client messages if needed
+                    # Wait for messages with timeout for heartbeat
+                    message = await asyncio.wait_for(
+                        websocket.receive_text(),
+                        timeout=next_ping_in
+                    )
+
+                    # Handle client messages
                     try:
                         data = json.loads(message)
-                        if data.get("type") == "ping":
+                        msg_type = data.get("type")
+
+                        if msg_type == "ping":
+                            # Client ping - respond with pong
                             await websocket.send_text(
                                 json.dumps(
                                     {
@@ -466,12 +520,47 @@ class WebSocketManager:
                                     }
                                 )
                             )
+                        elif msg_type == "pong":
+                            # Pong response from client - reset heartbeat
+                            last_pong = datetime.now()
+                            missed_pongs = 0
+                            logger.debug(f"💓 Received pong from session {session_id[:8]}")
+                        elif msg_type == "ack":
+                            # Client acknowledged a message
+                            message_id = data.get("message_id")
+                            if message_id:
+                                await self.ack_tracker.acknowledge(message_id, session_id)
                     except json.JSONDecodeError:
                         pass  # Ignore invalid JSON
 
                 except asyncio.TimeoutError:
-                    # No message received, continue (this keeps the connection alive)
-                    pass
+                    # Time to send ping (no message received)
+                    time_since_last = (datetime.now() - last_pong).total_seconds()
+
+                    if time_since_last >= HEARTBEAT_INTERVAL:
+                        # Send ping to client
+                        try:
+                            await websocket.send_text(
+                                json.dumps(
+                                    {
+                                        "type": "ping",
+                                        "timestamp": datetime.now().isoformat(),
+                                    }
+                                )
+                            )
+                            logger.debug(f"💓 Sent ping to session {session_id[:8]}")
+                            missed_pongs += 1
+
+                            # Check if connection is dead
+                            if missed_pongs >= 3:
+                                logger.warning(
+                                    f"💀 Connection dead (3 missed pongs) for session {session_id[:8]}"
+                                )
+                                break
+                        except Exception as e:
+                            logger.error(f"Failed to send ping: {e}")
+                            break
+
                 except WebSocketDisconnect:
                     break
 
@@ -480,6 +569,8 @@ class WebSocketManager:
         except Exception as e:
             logger.error(f"WebSocket error for session {session_id}: {e}")
         finally:
+            # Clean up ack tracker
+            self.ack_tracker.cleanup_session(session_id)
             self.disconnect(websocket, session_id)
 
     def get_session_connection_count(self, session_id: str) -> int:

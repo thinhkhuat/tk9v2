@@ -94,6 +94,8 @@ export interface AgentUpdateEvent {
   payload: AgentUpdatePayload;
   timestamp: string;
   session_id: string;
+  message_id?: string; // Optional: Added for message acknowledgment system
+  type?: string; // Optional: For heartbeat messages (ping/pong)
 }
 
 export interface FileGeneratedEvent {
@@ -101,6 +103,8 @@ export interface FileGeneratedEvent {
   payload: FileGeneratedPayload;
   timestamp: string;
   session_id: string;
+  message_id?: string;
+  type?: string;
 }
 
 export interface ResearchStatusEvent {
@@ -108,6 +112,8 @@ export interface ResearchStatusEvent {
   payload: ResearchStatusPayload;
   timestamp: string;
   session_id: string;
+  message_id?: string;
+  type?: string;
 }
 
 export interface LogEventType {
@@ -115,6 +121,8 @@ export interface LogEventType {
   payload: LogPayload;
   timestamp: string;
   session_id: string;
+  message_id?: string;
+  type?: string;
 }
 
 export interface ErrorEventType {
@@ -122,6 +130,8 @@ export interface ErrorEventType {
   payload: ErrorPayload;
   timestamp: string;
   session_id: string;
+  message_id?: string;
+  type?: string;
 }
 
 export interface ConnectionStatusEvent {
@@ -129,6 +139,8 @@ export interface ConnectionStatusEvent {
   payload: ConnectionStatusPayload;
   timestamp: string;
   session_id: string;
+  message_id?: string;
+  type?: string;
 }
 
 export interface FilesReadyEvent {
@@ -136,6 +148,8 @@ export interface FilesReadyEvent {
   payload: FilesReadyPayload;
   timestamp: string;
   session_id: string;
+  message_id?: string;
+  type?: string;
 }
 
 // Discriminated Union Type - TypeScript will automatically narrow types based on event_type
